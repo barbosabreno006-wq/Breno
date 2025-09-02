@@ -1,0 +1,198 @@
+
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carta para Lorena</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #001f3f, #003366, #1a75ff);
+    background-size: 400% 400%;
+    animation: gradientBG 20s ease infinite;
+    color: #fff;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding-top: 40px;
+  }
+
+  @keyframes gradientBG {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .card {
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(10px);
+    padding: 30px;
+    border-radius: 20px;
+    max-width: 800px;
+    width: 90%;
+    box-shadow: 0 0 25px rgba(0,0,0,0.5);
+  }
+
+  h1 {
+    text-align: center;
+    color: #7fc7ff;
+    text-shadow: 0 0 8px rgba(127,199,255,0.6);
+    margin-bottom: 20px;
+  }
+
+  .counter {
+    text-align: center;
+    font-size: 1.2rem;
+    color: #ffdd57;
+    margin-bottom: 20px;
+    font-weight: bold;
+  }
+
+  .texto {
+    line-height: 1.8;
+    color: #cfe8ff;
+    white-space: pre-line;
+    font-size: 1.15rem;
+    text-align: justify;
+  }
+
+  .assinatura {
+    text-align: center;
+    margin-top: 30px;
+    font-weight: bold;
+    font-size: 1.2rem;
+    color: #7fc7ff;
+  }
+
+  .fotos {
+    margin-top: 30px;
+  }
+
+  .fotos h2 {
+    text-align: center;
+    color: #7fc7ff;
+    margin-bottom: 15px;
+  }
+
+  .fotos img {
+    width: 150px;
+    border-radius: 12px;
+    margin: 6px;
+    box-shadow: 0 0 8px rgba(0,0,0,0.5);
+  }
+
+  .heart {
+    position: absolute;
+    color: #ff5c7c;
+    font-size: 20px;
+    animation: floatUp 6s linear infinite;
+  }
+
+  @keyframes floatUp {
+    0% { transform: translateY(100vh) scale(0.8); opacity: 0; }
+    30% { opacity: 1; }
+    100% { transform: translateY(-10vh) scale(1.2); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Música de fundo -->
+<audio autoplay loop>
+  <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" type="audio/mpeg">
+  Seu navegador não suporta áudio.
+</audio>
+
+<div class="card">
+  <h1>Minha Carta para Lorena</h1>
+  <div class="counter" id="counter">Carregando contador...</div>
+
+  <div class="texto">
+Lorena, meu amor eterno,
+
+Desde o instante em que te vi, minha vida ganhou uma luz que eu nunca havia sentido.  
+Você trouxe cores, sorrisos e uma paz que só o amor verdadeiro consegue dar.  
+
+Cada dia ao seu lado é um presente. Cada gesto seu, cada olhar, me faz sentir que sou a pessoa mais sortuda do mundo.  
+Seus risos são música para minha alma, e sua presença é meu refúgio seguro.  
+
+Lembro de cada momento que passamos juntos: os passeios, as conversas intermináveis, os silêncios que são confortáveis porque estamos juntos.  
+Você tornou minha vida mais bonita, mais completa e mais feliz.  
+
+Eu amo cada detalhe seu: seu jeito de falar, seu sorriso encantador, sua bondade e sua força.  
+Seus sonhos agora são os meus sonhos, e tudo que eu quero é construir um futuro contigo, cheio de aventuras, carinho e amor sem fim.  
+
+Prometo estar sempre ao seu lado, te apoiar, te abraçar nos momentos difíceis e celebrar cada conquista sua.  
+Você é minha inspiração, meu porto seguro, minha alegria e minha razão de sorrir todos os dias.  
+
+Nunca duvide do meu amor por você, Lorena. Ele é imenso, profundo e eterno.  
+Mesmo que o mundo mude, meu coração será sempre seu.  
+Você é tudo que eu sempre quis e muito mais.
+
+Para sempre seu,
+Breno 💙
+  </div>
+
+  <div class="assinatura">
+    Com todo meu amor.
+  </div>
+
+  <div class="fotos">
+    <h2>Nossas Memórias</h2>
+    <div style="display:flex; flex-wrap:wrap; justify-content:center;">
+      <img src="URL_DA_FOTO1" alt="Foto nossa 1">
+      <img src="URL_DA_FOTO2" alt="Foto nossa 2">
+      <!-- Adicione mais fotos copiando o <img> -->
+    </div>
+  </div>
+</div>
+
+<script>
+// Contador funcionando no iPhone/Textastic
+document.addEventListener("DOMContentLoaded", function() {
+    const startDate = new Date("2025-05-21T00:00:00").getTime();
+    const counterEl = document.getElementById('counter');
+
+    function updateCounter() {
+        const now = new Date().getTime();
+        let diff = now - startDate;
+
+        const msInSec = 1000;
+        const msInMin = msInSec * 60;
+        const msInHour = msInMin * 60;
+        const msInDay = msInHour * 24;
+
+        const days = Math.floor(diff / msInDay);
+        diff = diff % msInDay;
+        const hours = Math.floor(diff / msInHour);
+        diff = diff % msInHour;
+        const minutes = Math.floor(diff / msInMin);
+        diff = diff % msInMin;
+        const seconds = Math.floor(diff / msInSec);
+
+        counterEl.textContent = `${days} dias, ${hours}h ${minutes}m ${seconds}s desde que nos conhecemos`;
+    }
+
+    updateCounter();
+    setInterval(updateCounter, 1000);
+});
+
+// Corações flutuando
+function createHeart() {
+  const heart = document.createElement("div");
+  heart.classList.add("heart");
+  heart.innerHTML = "❤";
+  heart.style.left = Math.random() * 100 + "vw";
+  heart.style.animationDuration = (4 + Math.random() * 4) + "s";
+  document.body.appendChild(heart);
+  setTimeout(() => heart.remove(), 7000);
+}
+
+setInterval(createHeart, 1200);
+</script>
+
+</body>
+</html>
