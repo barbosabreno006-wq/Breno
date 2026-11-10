@@ -180,6 +180,7 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
     vovo = tipo == "vovo"
     vestido = tipo in ("vovo", "moca")
     oculos = tipo in ("vovo", "vovo_h")
+    adulto = tipo == "pai"
     if expr == "chora":
         expr_olho = "triste"
     else:
@@ -202,6 +203,9 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
 
     # tronco
     p.ret((92, 310, 248, 470), pal["camisa"], r=48)
+    if pal.get("faixas"):  # faixas refletivas (uniforme de gari)
+        for y in (380, 420):
+            p.ret((96, y, 244, y + 14), (225, 230, 235), r=4, ow=0)
     if not vovo:
         p.ret((150, 318, 190, 330), (255, 225, 140), r=6, ow=0)  # gola
 
@@ -245,6 +249,10 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
         for sx in (-1, 1):
             p.elipse((cx + sx * (r - 8) - 34, cy - 70, cx + sx * (r - 8) + 34, cy + 20), cab)
         p.poli([(cx - 20, cy - r + 4), (cx - 4, cy - r - 30), (cx + 14, cy - r + 6)], cab, ow=5)
+    elif adulto:
+        p.chord((cx - r - 4, cy - r - 6, cx + r + 4, cy + r * 0.2), 180, 360, cab)
+        p.elipse((cx - r - 6, cy - 60, cx - r + 30, cy + 10), cab, ow=0)
+        p.elipse((cx + r - 30, cy - 60, cx + r + 6, cy + 10), cab, ow=0)
     elif tipo == "moca":
         p.elipse((cx + r - 40, cy - r + 10, cx + r + 60, cy + 40), cab)       # rabo de cavalo
         p.chord((cx - r - 4, cy - r - 6, cx + r + 4, cy + r * 0.3), 180, 360, cab)
@@ -310,6 +318,13 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
         p.elipse((cx - 15, my - 8, cx + 15, my + 26), (150, 40, 50), ow=6)
     else:
         p.arco((cx - 26, my - 26, cx + 26, my + 6), 30, 150, w=7)
+    if adulto:  # bigode + barba por fazer
+        p.chord((cx - 48, my - 44, cx + 2, my - 14), 180, 360, cab, ow=5)
+        p.chord((cx - 2, my - 44, cx + 48, my - 14), 180, 360, cab, ow=5)
+        for k in range(14):
+            a = math.radians(20 + k * 10)
+            x, y = cx + 95 * math.cos(a), cy + 30 + 80 * math.sin(a)
+            p.elipse((x - 3, y - 3, x + 3, y + 3), (170, 120, 90), ow=0)
     if tipo == "vovo_h":  # bigode
         p.chord((cx - 52, my - 46, cx + 4, my - 12), 180, 360, cab, ow=5)
         p.chord((cx - 4, my - 46, cx + 52, my - 12), 180, 360, cab, ow=5)

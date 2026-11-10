@@ -174,7 +174,7 @@ def nuvem(p, x, y, s=1.0):
                  (255, 255, 255), ow=0)
 
 
-def cidade_dia(fonte_c, por_do_sol=False):
+def cidade_dia(fonte_c, por_do_sol=False, placa="CORREIO DO FUTURO"):
     base = gradiente(WW, WH, (250, 190, 140) if por_do_sol else (140, 200, 240),
                      (255, 230, 190) if por_do_sol else (225, 240, 250))
     p = Pincel(WW, WH)
@@ -205,7 +205,7 @@ def cidade_dia(fonte_c, por_do_sol=False):
     base.alpha_composite(p.pronto())
     d = ImageDraw.Draw(base)
     f = fonte(fonte_c, 46)
-    t = "CORREIO DO FUTURO"
+    t = placa
     d.text((540 - f.getlength(t) / 2, 785), t, font=f, fill=(200, 80, 70))
     return base
 
