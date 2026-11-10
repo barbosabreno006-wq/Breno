@@ -318,7 +318,7 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
         p.elipse((cx - 15, my - 8, cx + 15, my + 26), (150, 40, 50), ow=6)
     else:
         p.arco((cx - 26, my - 26, cx + 26, my + 6), 30, 150, w=7)
-    if adulto:  # bigode + barba por fazer
+    if adulto and pal.get("bigode", True):  # bigode + barba por fazer
         p.chord((cx - 48, my - 44, cx + 2, my - 14), 180, 360, cab, ow=5)
         p.chord((cx - 2, my - 44, cx + 48, my - 14), 180, 360, cab, ow=5)
         for k in range(14):
