@@ -176,11 +176,18 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
     W, H = 340, 640
     p = Pincel(W, H)
     pele, cab = pal["pele"], pal["cabelo"]
-    vovo = pal["tipo"] == "vovo"
+    tipo = pal["tipo"]
+    vovo = tipo == "vovo"
+    vestido = tipo in ("vovo", "moca")
+    oculos = tipo in ("vovo", "vovo_h")
+    if expr == "chora":
+        expr_olho = "triste"
+    else:
+        expr_olho = expr
 
     # pernas + sapatos
-    if vovo:
-        p.ret((100, 380, 240, 560), pal["camisa"], r=50)  # vestido
+    if vestido:
+        p.ret((100, 380, 240, 560), pal.get("vestido", pal["camisa"]), r=50)  # vestido
         for x in (135, 205):
             p.capsula((x, 540), (x, 585), 30, pele)
     else:
@@ -209,12 +216,20 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
     elif pose == "bate2":
         p.capsula((240, 335), (312, 290), 34, pal["camisa"])
         p.elipse((296, 258, 340, 302), pele)
+    elif pose == "entrega":
+        p.capsula((240, 335), (296, 372), 34, pal["camisa"])
+        p.elipse((282, 352, 322, 392), pele)
     elif pose == "acena":
         p.capsula((240, 335), (290, 230), 34, pal["camisa"])
         p.elipse((268, 190, 314, 236), pele)
     else:
         p.capsula((240, 335), (262, 455), 34, pal["camisa"])
         p.elipse((242, 440, 282, 480), pele)
+
+    if pal.get("bolsa"):  # alça + bolsa de carteiro
+        p.linha([(110, 318), (232, 452)], fill=(120, 72, 40), w=16)
+        p.ret((196, 420, 276, 500), (150, 96, 54), r=12)
+        p.ret((196, 420, 276, 448), (176, 116, 66), r=8, ow=5)
 
     # pescoço + cabeça
     p.ret((152, 285, 188, 320), pele, r=10)
@@ -226,7 +241,15 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
     p.elipse((cx - r, cy - r, cx + r, cy + r), pele)
 
     # cabelo
-    if vovo:
+    if tipo == "vovo_h":
+        for sx in (-1, 1):
+            p.elipse((cx + sx * (r - 8) - 34, cy - 70, cx + sx * (r - 8) + 34, cy + 20), cab)
+        p.poli([(cx - 20, cy - r + 4), (cx - 4, cy - r - 30), (cx + 14, cy - r + 6)], cab, ow=5)
+    elif tipo == "moca":
+        p.elipse((cx + r - 40, cy - r + 10, cx + r + 60, cy + 40), cab)       # rabo de cavalo
+        p.chord((cx - r - 4, cy - r - 6, cx + r + 4, cy + r * 0.3), 180, 360, cab)
+        p.elipse((cx + r - 34, cy - r + 30, cx + r + 2, cy - r + 66), (230, 90, 110), ow=5)
+    elif vovo:
         p.chord((cx - r - 6, cy - r - 8, cx + r + 6, cy + r * 0.55), 180, 360, cab)
         for k in range(-2, 3):
             p.elipse((cx + k * 48 - 34, cy - r - 4, cx + k * 48 + 34, cy - r + 50), cab, ow=0)
@@ -235,6 +258,13 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
         p.poli([(cx - 30, cy - r + 6), (cx - 8, cy - r - 62), (cx + 12, cy - r + 2)], cab)
         p.poli([(cx + 2, cy - r + 4), (cx + 40, cy - r - 48), (cx + 46, cy - r + 14)], cab)
 
+    if pal.get("chapeu"):  # quepe de carteiro
+        cc = pal["chapeu"]
+        p.chord((cx - r + 6, cy - r - 30, cx + r - 6, cy - r + 110), 180, 360, cc)
+        p.ret((cx - r + 2, cy - r + 36, cx + r - 2, cy - r + 66), cc, r=12)
+        p.chord((cx - 40, cy - r + 44, cx + r + 4, cy - r + 96), 0, 180, (40, 50, 80), ow=6)
+        p.elipse((cx - 16, cy - r + 6, cx + 16, cy - r + 34), (250, 200, 60), ow=5)
+
     # olhos
     ey = cy + 18
     for ex in (cx - 46, cx + 46):
@@ -242,18 +272,18 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
             p.arco((ex - 28, ey - 18, ex + 28, ey + 26), 200, 340, w=8)
         else:
             p.elipse((ex - 30, ey - 36, ex + 30, ey + 36), (255, 255, 255), ow=6)
-            dy = 6 if expr == "triste" else 0
+            dy = 6 if expr_olho == "triste" else 0
             pr = 15 if expr == "surpreso" else 19
             p.elipse((ex - pr, ey - pr + dy, ex + pr, ey + pr + dy), OUTLINE, ow=0)
             p.elipse((ex - 9 + 6, ey - 12 + dy, ex + 1 + 6, ey - 2 + dy), (255, 255, 255), ow=0)
-    if vovo:  # óculos redondos
+    if oculos:  # óculos redondos
         for ex in (cx - 46, cx + 46):
             p.arco((ex - 40, ey - 42, ex + 40, ey + 42), 0, 360, fill=(120, 90, 60), w=6)
         p.linha([(cx - 8, ey - 4), (cx + 8, ey - 4)], fill=(120, 90, 60), w=6)
 
     # sobrancelhas
     by = ey - 52
-    if expr == "triste":
+    if expr_olho == "triste":
         p.linha([(cx - 72, by + 4), (cx - 24, by - 10)], w=8)
         p.linha([(cx + 24, by - 10), (cx + 72, by + 4)], w=8)
     elif expr == "surpreso":
@@ -272,13 +302,21 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
     if expr in ("feliz", "ri"):
         p.chord((cx - 40, my - 30, cx + 40, my + 34), 0, 180, (150, 40, 50), ow=6)
         p.chord((cx - 22, my + 6, cx + 22, my + 32), 0, 180, (235, 100, 110), ow=0)
+    elif expr == "chora":
+        p.chord((cx - 30, my - 4, cx + 30, my + 34), 180, 360, (150, 40, 50), ow=6)
     elif expr == "triste":
         p.arco((cx - 26, my - 2, cx + 26, my + 30), 200, 340, w=7)
     elif expr == "surpreso":
         p.elipse((cx - 15, my - 8, cx + 15, my + 26), (150, 40, 50), ow=6)
     else:
         p.arco((cx - 26, my - 26, cx + 26, my + 6), 30, 150, w=7)
-    if vovo:  # rugas sutis
+    if tipo == "vovo_h":  # bigode
+        p.chord((cx - 52, my - 46, cx + 4, my - 12), 180, 360, cab, ow=5)
+        p.chord((cx - 4, my - 46, cx + 52, my - 12), 180, 360, cab, ow=5)
+    if expr == "chora":  # lágrimas
+        for ex in (cx - 46, cx + 46):
+            p.ret((ex - 12, ey + 30, ex + 12, ey + 110), (120, 190, 255), r=12, ow=4)
+    if oculos:  # rugas sutis
         p.arco((cx - 100, ey - 6, cx - 70, ey + 20), 100, 200, fill=(170, 120, 90), w=4)
         p.arco((cx + 70, ey - 6, cx + 100, ey + 20), -20, 80, fill=(170, 120, 90), w=4)
     return p.pronto()
