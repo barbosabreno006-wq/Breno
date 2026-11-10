@@ -291,7 +291,10 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
 
     # sobrancelhas
     by = ey - 52
-    if expr_olho == "triste":
+    if expr == "bravo":
+        p.linha([(cx - 74, by - 14), (cx - 22, by + 8)], w=10)
+        p.linha([(cx + 22, by + 8), (cx + 74, by - 14)], w=10)
+    elif expr_olho == "triste":
         p.linha([(cx - 72, by + 4), (cx - 24, by - 10)], w=8)
         p.linha([(cx + 24, by - 10), (cx + 72, by + 4)], w=8)
     elif expr == "surpreso":
@@ -310,6 +313,9 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
     if expr in ("feliz", "ri"):
         p.chord((cx - 40, my - 30, cx + 40, my + 34), 0, 180, (150, 40, 50), ow=6)
         p.chord((cx - 22, my + 6, cx + 22, my + 32), 0, 180, (235, 100, 110), ow=0)
+    elif expr == "bravo":
+        p.elipse((cx - 34, my - 14, cx + 34, my + 34), (150, 40, 50), ow=6)
+        p.ret((cx - 24, my - 10, cx + 24, my + 2), (255, 255, 255), r=3, ow=0)
     elif expr == "chora":
         p.chord((cx - 30, my - 4, cx + 30, my + 34), 180, 360, (150, 40, 50), ow=6)
     elif expr == "triste":
