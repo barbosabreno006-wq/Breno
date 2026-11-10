@@ -375,7 +375,7 @@ class FilmeSono(vc.Filme):
         self.cob_n, self.cob_m = cobertor(), cobertor((100, 120, 170))
         self.rua, self.rua_porta = rua_noite(fc), rua_noite(fc, True)
         self.tenis, self.pulseira, self.pulseira_off = tenis(), pulseira(), pulseira(False)
-        self.chave, self.mao = chave(), mao_cortada()
+        self.chave, self.img_mao = chave(), mao_cortada()
         self.esp = [espelho(fc, k) for k in range(4)]
         self.f_rua, self.f_porta, self.f_47 = foto(c_rua), foto(c_porta), foto(c_47)
         d = ImageDraw.Draw(self.f_47)
@@ -617,7 +617,7 @@ class FilmeSono(vc.Filme):
 
     def p_mao(self, t, d):
         m = self.fundo((50, 50, 60), (25, 25, 35))
-        self.segura(m, self.mao, 540, 950, 720)
+        self.segura(m, self.img_mao, 540, 950, 720)
         return camera(m, 540, 950, 1.0 + 0.3 * ease_out(t / 0.4))
 
     def p_chave(self, t, d):
