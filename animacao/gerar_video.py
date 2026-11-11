@@ -230,6 +230,11 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
         p.capsula((240, 335), (262, 455), 34, pal["camisa"])
         p.elipse((242, 440, 282, 480), pele)
 
+    if pal.get("gravata"):  # gravata
+        p.poli([(160, 318), (180, 318), (186, 420), (170, 440), (154, 420)], pal["gravata"], ow=4)
+    if pal.get("faixa_pres"):  # faixa presidencial verde e amarela
+        p.poli([(100, 322), (134, 312), (250, 446), (216, 462)], (40, 150, 70), ow=4)
+        p.poli([(112, 324), (124, 320), (238, 450), (226, 455)], (250, 210, 40), ow=0)
     if pal.get("bolsa"):  # alça + bolsa de carteiro
         p.linha([(110, 318), (232, 452)], fill=(120, 72, 40), w=16)
         p.ret((196, 420, 276, 500), (150, 96, 54), r=12)
@@ -310,6 +315,8 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
 
     # boca
     my = cy + 78
+    if pal.get("barba"):
+        p.chord((cx - r - 2, cy - 20, cx + r + 2, cy + r + 26), 0, 180, cab, ow=6)
     if expr in ("feliz", "ri"):
         p.chord((cx - 40, my - 30, cx + 40, my + 34), 0, 180, (150, 40, 50), ow=6)
         p.chord((cx - 22, my + 6, cx + 22, my + 32), 0, 180, (235, 100, 110), ow=0)
@@ -327,7 +334,7 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
     if adulto and pal.get("bigode", True):  # bigode + barba por fazer
         p.chord((cx - 48, my - 44, cx + 2, my - 14), 180, 360, cab, ow=5)
         p.chord((cx - 2, my - 44, cx + 48, my - 14), 180, 360, cab, ow=5)
-        for k in range(14):
+        for k in range(0 if pal.get("barba") else 14):
             a = math.radians(20 + k * 10)
             x, y = cx + 95 * math.cos(a), cy + 30 + 80 * math.sin(a)
             p.elipse((x - 3, y - 3, x + 3, y + 3), (170, 120, 90), ow=0)
