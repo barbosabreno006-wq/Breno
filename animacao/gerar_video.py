@@ -294,11 +294,13 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
         if olhos_fechados or expr == "ri":
             p.arco((ex - 28, ey - 18, ex + 28, ey + 26), 200, 340, w=8)
         else:
-            p.elipse((ex - 30, ey - 36, ex + 30, ey + 36), (255, 255, 255), ow=6)
+            cinza = expr == "cinza"
+            p.elipse((ex - 30, ey - 36, ex + 30, ey + 36), (175, 178, 185) if cinza else (255, 255, 255), ow=6)
             dy = 6 if expr_olho == "triste" else 0
             pr = 15 if expr == "surpreso" else 19
-            p.elipse((ex - pr, ey - pr + dy, ex + pr, ey + pr + dy), OUTLINE, ow=0)
-            p.elipse((ex - 9 + 6, ey - 12 + dy, ex + 1 + 6, ey - 2 + dy), (255, 255, 255), ow=0)
+            p.elipse((ex - pr, ey - pr + dy, ex + pr, ey + pr + dy), (125, 128, 135) if cinza else OUTLINE, ow=0)
+            if not cinza:
+                p.elipse((ex - 9 + 6, ey - 12 + dy, ex + 1 + 6, ey - 2 + dy), (255, 255, 255), ow=0)
     if oculos:  # óculos redondos
         for ex in (cx - 46, cx + 46):
             p.arco((ex - 40, ey - 42, ex + 40, ey + 42), 0, 360, fill=(120, 90, 60), w=6)
