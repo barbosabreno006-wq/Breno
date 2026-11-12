@@ -258,6 +258,16 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
         p.chord((cx - r - 4, cy - r - 6, cx + r + 4, cy + r * 0.2), 180, 360, cab)
         p.elipse((cx - r - 6, cy - 60, cx - r + 30, cy + 10), cab, ow=0)
         p.elipse((cx + r - 30, cy - 60, cx + r + 6, cy + 10), cab, ow=0)
+    elif tipo == "moca" and pal.get("tranca"):
+        for k in range(7):                                                     # trança embutida
+            y = cy - 40 + k * 46
+            x = cx + r - 6 + (8 if k % 2 else -8)
+            p.elipse((x - 30, y - 26, x + 30, y + 26), cab, ow=5)
+        p.elipse((cx + r - 22, cy + 270, cx + r + 10, cy + 300), (230, 90, 110), ow=4)
+        p.chord((cx - r - 4, cy - r - 6, cx + r + 4, cy + r * 0.3), 180, 360, cab)
+        for k in range(4):
+            p.arco((cx - 60 + k * 30, cy - r - 10, cx + 40 + k * 30, cy - r + 70), 200, 300,
+                   fill=tuple(max(0, c - 30) for c in cab), w=5)
     elif tipo == "moca":
         p.elipse((cx + r - 40, cy - r + 10, cx + r + 60, cy + 40), cab)       # rabo de cavalo
         p.chord((cx - r - 4, cy - r - 6, cx + r + 4, cy + r * 0.3), 180, 360, cab)
