@@ -39,7 +39,10 @@ def main():
     ap.add_argument("--limiar", type=float, default=-40)
     ap.add_argument("--min", type=float, default=0.18)
     ap.add_argument("--manter", type=float, default=0.12)
+    ap.add_argument("--pausas", default="",
+                    help="pausas dramáticas a preservar: 'tempo:duracao,...' (tempo = início da fala seguinte, no áudio original)")
     a = ap.parse_args()
+    pausas = [tuple(map(float, x.split(":"))) for x in a.pausas.split(",") if x]
 
     x = carregar(a.entrada)
     dur = len(x) / SR
@@ -56,6 +59,12 @@ def main():
             pedacos.append((cursor, min(dur, s + 0.15)))
             cursor = dur
             break
+        manter = next((dur for (tp, dur) in pausas if abs(e - tp) < 0.35), None)
+        if manter is not None:          # pausa dramática: mantém (até o tamanho pedido)
+            keep = min(manter, e - s)
+            pedacos.append((cursor, s + keep / 2))
+            cursor = e - keep / 2
+            continue
         pedacos.append((cursor, s + meio))
         cursor = e - meio
     if cursor < dur:

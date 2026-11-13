@@ -191,11 +191,28 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
         p.ret((100, 380, 240, 560), pal.get("vestido", pal["camisa"]), r=50)  # vestido
         for x in (135, 205):
             p.capsula((x, 540), (x, 585), 30, pele)
+    elif pose in ("anda1", "anda2"):
+        erguida = 135 if pose == "anda1" else 205
+        for x in (135, 205):
+            p.capsula((x, 440), (x + (8 if x == erguida else 0), 530 if x == erguida else 575), 38, pal["calca"])
+    elif pose == "ajoelha":
+        for x in (135, 205):
+            p.capsula((x, 440), (x + 10, 540), 38, pal["calca"])
+            p.capsula((x + 10, 540), (x - 70, 575), 38, pal["calca"])
     else:
         for x in (135, 205):
             p.capsula((x, 440), (x, 575), 38, pal["calca"])
-    for x in (125, 215):
-        p.elipse((x - 34, 572, x + 34, 612), pal["sapato"])
+    if pose in ("anda1", "anda2"):
+        erguida = 135 if pose == "anda1" else 205
+        for x, xo in ((135, 125), (205, 215)):
+            y = 527 if x == erguida else 572
+            p.elipse((xo - 34, y, xo + 34, y + 40), pal["sapato"])
+    elif pose == "ajoelha":
+        for x in (65, 135):
+            p.elipse((x - 34, 556, x + 34, 596), pal["sapato"])
+    else:
+        for x in (125, 215):
+            p.elipse((x - 34, 572, x + 34, 612), pal["sapato"])
 
     # braço esquerdo (do personagem à nossa esquerda)
     p.capsula((100, 335), (78, 455), 34, pal["camisa"])
@@ -220,6 +237,17 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
     elif pose == "bate2":
         p.capsula((240, 335), (312, 290), 34, pal["camisa"])
         p.elipse((296, 258, 340, 302), pele)
+    elif pose == "anda1":
+        p.capsula((240, 335), (285, 440), 34, pal["camisa"])
+        p.elipse((265, 425, 305, 465), pele)
+    elif pose == "anda2":
+        p.capsula((240, 335), (238, 455), 34, pal["camisa"])
+        p.elipse((218, 440, 258, 480), pele)
+    elif pose == "ajoelha":
+        p.capsula((240, 335), (310, 300), 34, pal["camisa"])
+        p.elipse((292, 278, 332, 318), pele)
+        p.ret((300, 250, 350, 290), (200, 40, 60), r=8, ow=5)          # caixinha do anel
+        p.elipse((312, 230, 338, 256), (250, 210, 60), ow=4)
     elif pose == "entrega":
         p.capsula((240, 335), (296, 372), 34, pal["camisa"])
         p.elipse((282, 352, 322, 392), pele)
@@ -332,6 +360,9 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
     if expr in ("feliz", "ri"):
         p.chord((cx - 40, my - 30, cx + 40, my + 34), 0, 180, (150, 40, 50), ow=6)
         p.chord((cx - 22, my + 6, cx + 22, my + 32), 0, 180, (235, 100, 110), ow=0)
+    elif expr == "fala":
+        p.elipse((cx - 24, my - 6, cx + 24, my + 28), (150, 40, 50), ow=6)
+        p.chord((cx - 14, my + 10, cx + 14, my + 26), 0, 180, (235, 100, 110), ow=0)
     elif expr == "bravo":
         p.elipse((cx - 34, my - 14, cx + 34, my + 34), (150, 40, 50), ow=6)
         p.ret((cx - 24, my - 10, cx + 24, my + 2), (255, 255, 255), r=3, ow=0)
