@@ -24,7 +24,8 @@ OMBRO_E, OMBRO_D = (100, 335), (240, 335)
 L_BRACO, L_ANTE = 66, 64
 QUADRIL_Y = 440
 L_COXA, L_CANELA = 70, 66
-POSES_RIG = {"idle", "aponta", "bate", "bate2", "entrega", "acena", "anda1", "anda2", "anda", "corre"}
+POSES_RIG = {"idle", "aponta", "bate", "bate2", "entrega", "acena", "anda1", "anda2", "anda", "corre",
+             "abraca_d", "abraca_e", "bolso", "palmas", "bracos_abertos"}
 
 
 def _s(x):
@@ -238,6 +239,37 @@ class Boneco:
             S["hrot"] += 4 * _s(t * tw * 1.2)
             S["bob"] += 3 * abs(_s(t * tw * 2.4))
 
+        elif pose == "abraca_d":          # abraça quem está à direita (braço passa por trás dele)
+            mD = (372, 372 + 4 * _s(t * 2))
+            dobraD = 1
+            mE = (215, 405)
+            S["hrot"] = -9 + 2 * _s(t * 1.5)
+            S["hdx"] = 12
+            S["bob"] = 2 * _s(t * 2)
+        elif pose == "abraca_e":
+            mE = (-32, 372 + 4 * _s(t * 2))
+            dobraE = -1
+            mD = (125, 405)
+            S["hrot"] = 9 + 2 * _s(t * 1.5)
+            S["hdx"] = -12
+            S["bob"] = 2 * _s(t * 2)
+        elif pose == "bolso":
+            mE, mD = (122, 446), (218, 446)
+            dobraE, dobraD = 1, -1
+            S["bolso"] = True
+        elif pose == "palmas":
+            k = max(0, _s(t * 2 * math.pi * 2.6))
+            mE = (152 - 26 * k, 365)
+            mD = (188 + 26 * k, 365)
+            dobraE, dobraD = 1, -1
+            S["bob"] += 2 * k
+            S["esq_frente"] = True
+        elif pose == "bracos_abertos":
+            a = 6 * _s(t * 3)
+            mE, mD = (10 - a, 330), (330 + a, 330)
+            dobraE, dobraD = -1, 1
+            S["bob"] += 3 * abs(_s(t * 3))
+
         # ---------- pernas / caminhada ----------
         if pose in ("anda1", "anda2", "anda", "corre"):
             vel = 2.2 if pose == "corre" else 1.6
@@ -329,8 +361,9 @@ class Boneco:
         def mao_so(m):
             p.elipse((m[0] + o - 20, m[1] - 20, m[0] + o + 20, m[1] + 20), pele)
 
-        rosto = S["maos_rosto"]
-        _, mE = braco(oE, S["mE"], S["dobraE"], mao=not rosto)
+        rosto = S["maos_rosto"] or S.get("bolso", False)
+        if not S.get("esq_frente"):
+            _, mE = braco(oE, S["mE"], S["dobraE"], mao=not rosto)
 
         # ---- tronco ----
         tb = (92 + hx + o, 310 + tdy, 248 + hx + o, 470 + tdy * 0.4)
@@ -341,6 +374,8 @@ class Boneco:
         if not vovo:
             p.ret((150 + hx + o, 318 + tdy, 190 + hx + o, 330 + tdy), (255, 225, 140), r=6, ow=0)
 
+        if S.get("esq_frente"):
+            _, mE = braco(oE, S["mE"], S["dobraE"], mao=not rosto)
         _, mD = braco(oD, S["mD"], S["dobraD"], mao=not rosto)
         if S.get("dedo") and not rosto:
             p.capsula((mD[0] + o + 10, mD[1] - 14), (mD[0] + o + 18, mD[1] - 46), 13, pele, ow=4)
@@ -362,7 +397,8 @@ class Boneco:
         cab = self.cabeca(expr, fechado)
         cab = cab.rotate(S["hrot"], resample=Image.BICUBIC, center=(170, 300))
         corpo.alpha_composite(cab, (int(o + hx + S["hdx"]), int(tdy + S["hdy"])))
-        if rosto:  # mãos por cima do rosto (choro)
+        S["maos"] = ((mE[0] + o, mE[1]), (mD[0] + o, mD[1]))
+        if S["maos_rosto"]:  # mãos por cima do rosto (choro)
             q = Pincel(CW, CH)
             for m in (mE, mD):
                 q.elipse((m[0] + o - 22, m[1] - 22, m[0] + o + 22, m[1] + 22), pele)
@@ -376,6 +412,9 @@ class Boneco:
         fechado = piscar and (int(t * g.FPS) % 95) in (0, 1, 2)
         img, S = self.render(t, expr, pose, fechado)
         self.ultimo_bob = S["bob"] + pulo
+        r_ = 1 + 0.012 * math.sin(t * 2 * math.pi * 0.9) + S["sq"]
+        self.maos_mundo = [(cx + (1 if sx >= 0 else -1) * (x - CW / 2) * escala * (2 - r_),
+                            by - S["bob"] - pulo - (CH - y) * escala * r_) for x, y in S["maos"]]
         respira = 1 + 0.012 * math.sin(t * 2 * math.pi * 0.9) + S["sq"]
         if sx < 0:
             img = img.transpose(Image.FLIP_LEFT_RIGHT)
