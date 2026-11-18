@@ -348,7 +348,7 @@ class FilmeAreia(ve.FilmeEstatua):
         f = self.cam(m, 540, 1050, 1.05)
         texto_pop(f, "SÓ TEM UM DETALHE", self.fc, t, OUT_W / 2, OUT_H * 0.1, 60, (255, 214, 40))
         if rindo:
-            texto_pop(f, "QUANDO RI, PARA", self.fc, self.T - 21.80, OUT_W / 2, OUT_H * 0.8, 60, (255, 255, 255))
+            texto_pop(f, "QUANDO RI, PARA", self.fc, self.T - 21.80, OUT_W / 2, OUT_H * 0.27, 60, (255, 255, 255))
         return f
 
     def p_caio(self, t, d):
@@ -592,6 +592,10 @@ class FilmeAreia(ve.FilmeEstatua):
         t = n / FPS
         self.T = t
         g.CAM_T = t
+        if not hasattr(self, "cortes"):
+            self.cortes = g.subcortes(self.planos, self.palavras)
+        g.CAM_VAR = g.var_em(self.cortes, t)
+        g.ALVOS.clear()
         for i, (ini, d, fn, clima, tr) in enumerate(self.planos):
             if t < ini + d or i == len(self.planos) - 1:
                 tl = t - ini
@@ -600,8 +604,12 @@ class FilmeAreia(ve.FilmeEstatua):
                 if i > 0 and tl < T_ and tr != "corte":
                     pi, pd, pfn, pcl, _ = self.planos[i - 1]
                     self.T = pi + pd - 0.001
+                    g.CAM_VAR = g.var_em(self.cortes, self.T)
+                    g.ALVOS.clear()
                     prev = self.gradear(pfn(pd - 0.001, pd), pcl)
                     self.T = t
+                    g.CAM_VAR = g.var_em(self.cortes, t)
+                    g.ALVOS.clear()
                     x = tl / T_
                     if tr == "whip":
                         off = int(OUT_W * ease_io(x))

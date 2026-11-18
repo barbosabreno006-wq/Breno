@@ -572,10 +572,63 @@ def balao_pensamento(conteudo):
 # Câmera, transições, legendas, efeitos
 # --------------------------------------------------------------------------
 CAM_T = None   # quando definido (tempo do filme), a câmera balança levemente
+CAM_VAR = None  # (zoom, dx, dy) do "sub-take" atual — corte de enquadramento a cada ~2 s
+# (zoom extra, modo, índice do personagem-alvo)
+VARIACOES = [(1.0, "", 0), (1.6, "alvo", 0), (1.35, "alvo", 1), (1.5, "alvo", -1), (1.28, "centro", 0),
+             (1.7, "alvo", 0)]
+ALVOS = []      # cabeças dos personagens desenhados neste frame: (x, y, escala) no mundo
+
+
+def subcortes(planos, palavras, alvo=2.1, minimo=1.3):
+    """Divide cada plano longo em takes de ~2 s, cortando no início de uma palavra.
+    Retorna lista de (inicio_absoluto, indice_variacao)."""
+    inicios = [w["s"] for w in palavras]
+    out = []
+    for ini, d, *_r in planos:
+        out.append((ini, 0))
+        n = int(d / alvo + 0.35)
+        if n < 2:
+            continue
+        ult = ini
+        for k in range(1, n):
+            alvo_t = ini + k * d / n
+            c = min(inicios, key=lambda s: abs(s - alvo_t)) if inicios else alvo_t
+            if abs(c - alvo_t) > 0.6:
+                c = alvo_t
+            if c - ult >= minimo and ini + d - c >= minimo:
+                out.append((c, 1 + (k - 1 + int(ini * 7)) % (len(VARIACOES) - 1) if k % 2 else
+                            (0 if k % 4 == 2 else 1 + (k + 2 + int(ini * 7)) % (len(VARIACOES) - 1))))
+                ult = c
+    out.sort()
+    return out
+
+
+def var_em(cortes, t):
+    v = 0
+    for c, i in cortes:
+        if c <= t + 1e-6:
+            v = i
+        else:
+            break
+    return VARIACOES[v]
 
 
 def camera(mundo, cx, cy, zoom):
     """Recorta a janela 9:16 do mundo centrada em (cx, cy) com zoom."""
+    if CAM_VAR is not None and CAM_VAR[0] != 1.0:
+        zv, modo, idx = CAM_VAR
+        zv = max(1.0, min(zv, 2.2 / max(zoom, 0.01)))
+        vw0, vh0 = WW / zoom, WH / zoom
+        x0 = min(max(cx - vw0 / 2, 0), WW - vw0)
+        y0 = min(max(cy - vh0 / 2, 0), WH - vh0)
+        vis = [a for a in ALVOS if x0 + 40 < a[0] < x0 + vw0 - 40 and y0 + 40 < a[1] < y0 + vh0 - 40]
+        vis.sort(key=lambda a: -a[2])
+        if modo == "alvo" and vis:
+            ax, ay, ae = vis[idx % len(vis)] if idx >= 0 else vis[-1]
+            zoom *= zv
+            cx, cy = ax, ay + 170 * ae
+        elif zv > 1:
+            zoom *= min(zv, 1.3)
     if CAM_T is not None:   # câmera "na mão": sempre um leve balanço vivo
         t = CAM_T
         zoom *= 1.045 + 0.012 * math.sin(t * 0.55)

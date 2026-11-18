@@ -422,6 +422,8 @@ class Pers:
         return self.a.spr(expr, pose)
 
     def __call__(self, m, t, cx, by, e, expr="neutro", pose="idle", cong=False, fala=None, **kw):
+        if kw.get("alpha", 1) > 0.5 and not kw.get("rot"):
+            g.ALVOS.append((cx, by - 470 * e, e))
         if cong:
             g.colar(m, gelo(self.a.spr(expr, pose)), cx, by, e, rot=kw.get("rot", 0.0))
             return
