@@ -32,6 +32,7 @@ import video_carta as vc  # noqa: E402
 import video_corsa as vco  # noqa: E402
 import video_milhao as vm  # noqa: E402
 import video_controle as vct  # noqa: E402
+from boneco import Boneco  # noqa: E402
 from gerar_video import (FPS, OUT_W, OUT_H, WW, WH, OUTLINE, Pincel, Ator, gradiente, brilho,
                          ease_out, ease_io, camera, particulas, texto_pop)
 
@@ -414,7 +415,7 @@ class Pers:
     """Personagem com: vivo (respira/pisca), congelado (gelo, imóvel) e lip-sync."""
 
     def __init__(self, pal, filme):
-        self.a = Ator(pal)
+        self.a = Boneco(pal)
         self.filme = filme
 
     def spr(self, expr, pose):
@@ -424,6 +425,11 @@ class Pers:
         if cong:
             g.colar(m, gelo(self.a.spr(expr, pose)), cx, by, e, rot=kw.get("rot", 0.0))
             return
+        T = getattr(self.filme, "T", 0)
+        self.a.fala_ativa = bool(fala) and any(a <= T < b for a, b in fala)
+        env = getattr(self.filme, "env", None)
+        i = int(T * FPS)
+        self.a.amp = float(min(1, env[i] * 1.3)) if self.a.fala_ativa and env is not None and i < len(env) else 0.0
         if fala and self.filme.boca_aberta(fala):
             expr = "fala"
         self.a.desenhar(m, t, cx, by, escala=e, expr=expr, pose=pose, **kw)
@@ -1142,6 +1148,7 @@ class FilmeEstatua(vc.Filme):
     def frame(self, n):
         t = n / FPS
         self.T = t
+        g.CAM_T = t
         for i, (ini, d, fn, clima, tr) in enumerate(self.planos):
             if t < ini + d or i == len(self.planos) - 1:
                 tl = t - ini

@@ -111,7 +111,7 @@ def com_ampulheta(m, pers, t, cx, by, e, cima, baixo, expr="neutro", pose="idle"
     pers(m, t, cx, by, e, expr=expr, pose=pose, **kw)
     w = int(150 * e * escala_amp)
     amp = ampulheta(cima, baixo, w)
-    bob = 4 * math.sin(t * 2 * math.pi * 0.9)
+    bob = getattr(pers.a, "ultimo_bob", 4 * math.sin(t * 2 * math.pi * 0.9))
     x0 = cx - amp.width / 2
     y0 = by - bob - 650 * e - amp.height - 10
     m.alpha_composite(amp, (int(x0), int(y0)))
@@ -591,6 +591,7 @@ class FilmeAreia(ve.FilmeEstatua):
     def frame(self, n):
         t = n / FPS
         self.T = t
+        g.CAM_T = t
         for i, (ini, d, fn, clima, tr) in enumerate(self.planos):
             if t < ini + d or i == len(self.planos) - 1:
                 tl = t - ini
@@ -689,6 +690,8 @@ def main():
     ap.add_argument("--saida", default=os.path.join(os.path.dirname(__file__), "video_areia_da_vo.mp4"))
     ap.add_argument("--preview", default=None)
     ap.add_argument("--testar", action="store_true")
+    ap.add_argument("--de", type=float, default=None)
+    ap.add_argument("--ate", type=float, default=None)
     a = ap.parse_args()
 
     voz_dur = len(vc.ler_wav_mono(a.narracao)) / g.SR
@@ -711,6 +714,13 @@ def main():
     tmp = tempfile.mkdtemp(prefix="areia_")
     wav = os.path.join(tmp, "mix.wav")
     mixar(filme, a.narracao, wav)
+    n0 = int((a.de or 0) * FPS)
+    n1 = int(a.ate * FPS) if a.ate else total
+    if a.de or a.ate:
+        tr = os.path.join(tmp, "trecho.wav")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(a.de or 0), "-t", str((n1 - n0) / FPS),
+                        "-i", wav, tr], check=True)
+        wav = tr
     print(f"• renderizando {total} frames ({filme.dur_total:.1f}s)…", flush=True)
     proc = subprocess.Popen(
         ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{OUT_W}x{OUT_H}",
@@ -718,7 +728,7 @@ def main():
          "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-maxrate", "6M", "-bufsize", "12M",
          "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", a.saida],
         stdin=subprocess.PIPE)
-    for n in range(total):
+    for n in range(n0, n1):
         proc.stdin.write(filme.frame(n).tobytes())
         if n % 150 == 0:
             print(f"  {n}/{total}", flush=True)

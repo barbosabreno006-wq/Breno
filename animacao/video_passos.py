@@ -872,6 +872,7 @@ class FilmePassos(ve.FilmeEstatua):
     def frame(self, n):
         t = n / FPS
         self.T = t
+        g.CAM_T = t
         for i, (ini, d, fn, clima, tr) in enumerate(self.planos):
             if t < ini + d or i == len(self.planos) - 1:
                 tl = t - ini

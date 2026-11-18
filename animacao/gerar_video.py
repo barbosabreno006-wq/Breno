@@ -172,7 +172,7 @@ CIDA = dict(pele=(214, 160, 120), cabelo=(220, 220, 228), camisa=(176, 120, 190)
             calca=(120, 90, 150), sapato=(110, 80, 70), tipo="vovo")
 
 
-def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
+def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False, so_cabeca=False):
     W, H = 340, 640
     p = Pincel(W, H)
     pele, cab = pal["pele"], pal["cabelo"]
@@ -186,87 +186,88 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False):
     else:
         expr_olho = expr
 
-    # pernas + sapatos
-    if vestido:
-        p.ret((100, 380, 240, 560), pal.get("vestido", pal["camisa"]), r=50)  # vestido
-        for x in (135, 205):
-            p.capsula((x, 540), (x, 585), 30, pele)
-    elif pose in ("anda1", "anda2"):
-        erguida = 135 if pose == "anda1" else 205
-        for x in (135, 205):
-            p.capsula((x, 440), (x + (8 if x == erguida else 0), 530 if x == erguida else 575), 38, pal["calca"])
-    elif pose == "ajoelha":
-        for x in (135, 205):
-            p.capsula((x, 440), (x + 10, 540), 38, pal["calca"])
-            p.capsula((x + 10, 540), (x - 70, 575), 38, pal["calca"])
-    else:
-        for x in (135, 205):
-            p.capsula((x, 440), (x, 575), 38, pal["calca"])
-    if pose in ("anda1", "anda2"):
-        erguida = 135 if pose == "anda1" else 205
-        for x, xo in ((135, 125), (205, 215)):
-            y = 527 if x == erguida else 572
-            p.elipse((xo - 34, y, xo + 34, y + 40), pal["sapato"])
-    elif pose == "ajoelha":
-        for x in (65, 135):
-            p.elipse((x - 34, 556, x + 34, 596), pal["sapato"])
-    else:
-        for x in (125, 215):
-            p.elipse((x - 34, 572, x + 34, 612), pal["sapato"])
+    if not so_cabeca:
+        # pernas + sapatos
+        if vestido:
+            p.ret((100, 380, 240, 560), pal.get("vestido", pal["camisa"]), r=50)  # vestido
+            for x in (135, 205):
+                p.capsula((x, 540), (x, 585), 30, pele)
+        elif pose in ("anda1", "anda2"):
+            erguida = 135 if pose == "anda1" else 205
+            for x in (135, 205):
+                p.capsula((x, 440), (x + (8 if x == erguida else 0), 530 if x == erguida else 575), 38, pal["calca"])
+        elif pose == "ajoelha":
+            for x in (135, 205):
+                p.capsula((x, 440), (x + 10, 540), 38, pal["calca"])
+                p.capsula((x + 10, 540), (x - 70, 575), 38, pal["calca"])
+        else:
+            for x in (135, 205):
+                p.capsula((x, 440), (x, 575), 38, pal["calca"])
+        if pose in ("anda1", "anda2"):
+            erguida = 135 if pose == "anda1" else 205
+            for x, xo in ((135, 125), (205, 215)):
+                y = 527 if x == erguida else 572
+                p.elipse((xo - 34, y, xo + 34, y + 40), pal["sapato"])
+        elif pose == "ajoelha":
+            for x in (65, 135):
+                p.elipse((x - 34, 556, x + 34, 596), pal["sapato"])
+        else:
+            for x in (125, 215):
+                p.elipse((x - 34, 572, x + 34, 612), pal["sapato"])
 
-    # braço esquerdo (do personagem à nossa esquerda)
-    p.capsula((100, 335), (78, 455), 34, pal["camisa"])
-    p.elipse((58, 440, 98, 480), pele)
+        # braço esquerdo (do personagem à nossa esquerda)
+        p.capsula((100, 335), (78, 455), 34, pal["camisa"])
+        p.elipse((58, 440, 98, 480), pele)
 
-    # tronco
-    p.ret((92, 310, 248, 470), pal["camisa"], r=48)
-    if pal.get("faixas"):  # faixas refletivas (uniforme de gari)
-        for y in (380, 420):
-            p.ret((96, y, 244, y + 14), (225, 230, 235), r=4, ow=0)
-    if not vovo:
-        p.ret((150, 318, 190, 330), (255, 225, 140), r=6, ow=0)  # gola
+        # tronco
+        p.ret((92, 310, 248, 470), pal["camisa"], r=48)
+        if pal.get("faixas"):  # faixas refletivas (uniforme de gari)
+            for y in (380, 420):
+                p.ret((96, y, 244, y + 14), (225, 230, 235), r=4, ow=0)
+        if not vovo:
+            p.ret((150, 318, 190, 330), (255, 225, 140), r=6, ow=0)  # gola
 
-    # braço direito conforme pose
-    if pose == "aponta":
-        p.capsula((240, 335), (318, 255), 34, pal["camisa"])
-        p.elipse((300, 230, 340, 270), pele)
-        p.capsula((330, 238), (338, 205), 13, pele, ow=4)
-    elif pose == "bate":
-        p.capsula((240, 335), (300, 270), 34, pal["camisa"])
-        p.elipse((282, 232, 326, 276), pele)
-    elif pose == "bate2":
-        p.capsula((240, 335), (312, 290), 34, pal["camisa"])
-        p.elipse((296, 258, 340, 302), pele)
-    elif pose == "anda1":
-        p.capsula((240, 335), (285, 440), 34, pal["camisa"])
-        p.elipse((265, 425, 305, 465), pele)
-    elif pose == "anda2":
-        p.capsula((240, 335), (238, 455), 34, pal["camisa"])
-        p.elipse((218, 440, 258, 480), pele)
-    elif pose == "ajoelha":
-        p.capsula((240, 335), (310, 300), 34, pal["camisa"])
-        p.elipse((292, 278, 332, 318), pele)
-        p.ret((300, 250, 350, 290), (200, 40, 60), r=8, ow=5)          # caixinha do anel
-        p.elipse((312, 230, 338, 256), (250, 210, 60), ow=4)
-    elif pose == "entrega":
-        p.capsula((240, 335), (296, 372), 34, pal["camisa"])
-        p.elipse((282, 352, 322, 392), pele)
-    elif pose == "acena":
-        p.capsula((240, 335), (290, 230), 34, pal["camisa"])
-        p.elipse((268, 190, 314, 236), pele)
-    else:
-        p.capsula((240, 335), (262, 455), 34, pal["camisa"])
-        p.elipse((242, 440, 282, 480), pele)
+        # braço direito conforme pose
+        if pose == "aponta":
+            p.capsula((240, 335), (318, 255), 34, pal["camisa"])
+            p.elipse((300, 230, 340, 270), pele)
+            p.capsula((330, 238), (338, 205), 13, pele, ow=4)
+        elif pose == "bate":
+            p.capsula((240, 335), (300, 270), 34, pal["camisa"])
+            p.elipse((282, 232, 326, 276), pele)
+        elif pose == "bate2":
+            p.capsula((240, 335), (312, 290), 34, pal["camisa"])
+            p.elipse((296, 258, 340, 302), pele)
+        elif pose == "anda1":
+            p.capsula((240, 335), (285, 440), 34, pal["camisa"])
+            p.elipse((265, 425, 305, 465), pele)
+        elif pose == "anda2":
+            p.capsula((240, 335), (238, 455), 34, pal["camisa"])
+            p.elipse((218, 440, 258, 480), pele)
+        elif pose == "ajoelha":
+            p.capsula((240, 335), (310, 300), 34, pal["camisa"])
+            p.elipse((292, 278, 332, 318), pele)
+            p.ret((300, 250, 350, 290), (200, 40, 60), r=8, ow=5)          # caixinha do anel
+            p.elipse((312, 230, 338, 256), (250, 210, 60), ow=4)
+        elif pose == "entrega":
+            p.capsula((240, 335), (296, 372), 34, pal["camisa"])
+            p.elipse((282, 352, 322, 392), pele)
+        elif pose == "acena":
+            p.capsula((240, 335), (290, 230), 34, pal["camisa"])
+            p.elipse((268, 190, 314, 236), pele)
+        else:
+            p.capsula((240, 335), (262, 455), 34, pal["camisa"])
+            p.elipse((242, 440, 282, 480), pele)
 
-    if pal.get("gravata"):  # gravata
-        p.poli([(160, 318), (180, 318), (186, 420), (170, 440), (154, 420)], pal["gravata"], ow=4)
-    if pal.get("faixa_pres"):  # faixa presidencial verde e amarela
-        p.poli([(100, 322), (134, 312), (250, 446), (216, 462)], (40, 150, 70), ow=4)
-        p.poli([(112, 324), (124, 320), (238, 450), (226, 455)], (250, 210, 40), ow=0)
-    if pal.get("bolsa"):  # alça + bolsa de carteiro
-        p.linha([(110, 318), (232, 452)], fill=(120, 72, 40), w=16)
-        p.ret((196, 420, 276, 500), (150, 96, 54), r=12)
-        p.ret((196, 420, 276, 448), (176, 116, 66), r=8, ow=5)
+        if pal.get("gravata"):  # gravata
+            p.poli([(160, 318), (180, 318), (186, 420), (170, 440), (154, 420)], pal["gravata"], ow=4)
+        if pal.get("faixa_pres"):  # faixa presidencial verde e amarela
+            p.poli([(100, 322), (134, 312), (250, 446), (216, 462)], (40, 150, 70), ow=4)
+            p.poli([(112, 324), (124, 320), (238, 450), (226, 455)], (250, 210, 40), ow=0)
+        if pal.get("bolsa"):  # alça + bolsa de carteiro
+            p.linha([(110, 318), (232, 452)], fill=(120, 72, 40), w=16)
+            p.ret((196, 420, 276, 500), (150, 96, 54), r=12)
+            p.ret((196, 420, 276, 448), (176, 116, 66), r=8, ow=5)
 
     # pescoço + cabeça
     p.ret((152, 285, 188, 320), pele, r=10)
@@ -570,8 +571,16 @@ def balao_pensamento(conteudo):
 # --------------------------------------------------------------------------
 # Câmera, transições, legendas, efeitos
 # --------------------------------------------------------------------------
+CAM_T = None   # quando definido (tempo do filme), a câmera balança levemente
+
+
 def camera(mundo, cx, cy, zoom):
     """Recorta a janela 9:16 do mundo centrada em (cx, cy) com zoom."""
+    if CAM_T is not None:   # câmera "na mão": sempre um leve balanço vivo
+        t = CAM_T
+        zoom *= 1.045 + 0.012 * math.sin(t * 0.55)
+        cx += 9 * math.sin(t * 0.83) + 4 * math.sin(t * 2.1 + 1.3)
+        cy += 7 * math.sin(t * 0.67 + 0.5) + 3 * math.sin(t * 1.7 + 2.0)
     vw = WW / zoom
     vh = WH / zoom
     x0 = min(max(cx - vw / 2, 0), WW - vw)
