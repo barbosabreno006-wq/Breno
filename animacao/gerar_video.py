@@ -575,11 +575,17 @@ CAM_T = None   # quando definido (tempo do filme), a câmera balança levemente
 CAM_VAR = None  # (zoom, dx, dy) do "sub-take" atual — corte de enquadramento a cada ~2 s
 # (zoom extra, modo, índice do personagem-alvo)
 VARIACOES = [(1.0, "", 0), (1.6, "alvo", 0), (1.35, "alvo", 1), (1.5, "alvo", -1), (1.28, "centro", 0),
-             (1.7, "alvo", 0)]
+             (1.7, "alvo", 0), (1.15, "flip", 0), (1.9, "alvo", 1), (1.45, "alvo", 2), (1.22, "flip", 1)]
+CORTE_ALVO = 2.1     # duração média de cada take (s); 0.77 = 13 cortes a cada 10 s
+CORTE_MIN = 1.3
+PERMITE_FLIP = True   # False: nunca espelha o quadro (cenas com texto desenhado no mundo)
+FLIP = [False]  # espelha horizontalmente o quadro atual (variedade de cortes)
 ALVOS = []      # cabeças dos personagens desenhados neste frame: (x, y, escala) no mundo
 
 
-def subcortes(planos, palavras, alvo=2.1, minimo=1.3):
+def subcortes(planos, palavras, alvo=None, minimo=None):
+    alvo = CORTE_ALVO if alvo is None else alvo
+    minimo = CORTE_MIN if minimo is None else minimo
     """Divide cada plano longo em takes de ~2 s, cortando no início de uma palavra.
     Retorna lista de (inicio_absoluto, indice_variacao)."""
     inicios = [w["s"] for w in palavras]
@@ -617,6 +623,8 @@ def camera(mundo, cx, cy, zoom):
     """Recorta a janela 9:16 do mundo centrada em (cx, cy) com zoom."""
     if CAM_VAR is not None and CAM_VAR[0] != 1.0:
         zv, modo, idx = CAM_VAR
+        if modo == "flip" and not PERMITE_FLIP:
+            modo = "alvo"
         zv = max(1.0, min(zv, 2.2 / max(zoom, 0.01)))
         vw0, vh0 = WW / zoom, WH / zoom
         x0 = min(max(cx - vw0 / 2, 0), WW - vw0)
@@ -627,8 +635,14 @@ def camera(mundo, cx, cy, zoom):
             ax, ay, ae = vis[idx % len(vis)] if idx >= 0 else vis[-1]
             zoom *= zv
             cx, cy = ax, ay + 170 * ae
-        elif zv > 1:
+        elif zv > 1 and modo != "flip":
             zoom *= min(zv, 1.3)
+        if modo == "flip":
+            FLIP[0] = True
+            if vis:
+                ax, ay, ae = vis[idx % len(vis)]
+                cx, cy = ax, ay + 260 * ae
+                zoom *= min(zv, 1.25)
     if CAM_T is not None:   # câmera "na mão": sempre um leve balanço vivo
         t = CAM_T
         zoom *= 1.045 + 0.012 * math.sin(t * 0.55)
@@ -638,8 +652,11 @@ def camera(mundo, cx, cy, zoom):
     vh = WH / zoom
     x0 = min(max(cx - vw / 2, 0), WW - vw)
     y0 = min(max(cy - vh / 2, 0), WH - vh)
-    return mundo.convert("RGB").resize((OUT_W, OUT_H), Image.BICUBIC,
-                                       box=(x0, y0, x0 + vw, y0 + vh))
+    img = mundo.convert("RGB").resize((OUT_W, OUT_H), Image.BICUBIC, box=(x0, y0, x0 + vw, y0 + vh))
+    if FLIP[0]:
+        FLIP[0] = False
+        img = img.transpose(Image.FLIP_LEFT_RIGHT)
+    return img
 
 
 def motion_blur_h(img, forca):
