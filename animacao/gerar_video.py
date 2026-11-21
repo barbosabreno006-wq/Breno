@@ -578,6 +578,7 @@ VARIACOES = [(1.0, "", 0), (1.6, "alvo", 0), (1.35, "alvo", 1), (1.5, "alvo", -1
              (1.7, "alvo", 0), (1.15, "flip", 0), (1.9, "alvo", 1), (1.45, "alvo", 2), (1.22, "flip", 1)]
 CORTE_ALVO = 2.1     # duração média de cada take (s); 0.77 = 13 cortes a cada 10 s
 CORTE_MIN = 1.3
+HANDHELD = True       # False: sem o balanço de câmera "na mão" (câmera lisa, como nas referências)
 PERMITE_FLIP = True   # False: nunca espelha o quadro (cenas com texto desenhado no mundo)
 FLIP = [False]  # espelha horizontalmente o quadro atual (variedade de cortes)
 ALVOS = []      # cabeças dos personagens desenhados neste frame: (x, y, escala) no mundo
@@ -643,7 +644,7 @@ def camera(mundo, cx, cy, zoom):
                 ax, ay, ae = vis[idx % len(vis)]
                 cx, cy = ax, ay + 260 * ae
                 zoom *= min(zv, 1.25)
-    if CAM_T is not None:   # câmera "na mão": sempre um leve balanço vivo
+    if CAM_T is not None and HANDHELD:   # câmera "na mão": sempre um leve balanço vivo
         t = CAM_T
         zoom *= 1.045 + 0.012 * math.sin(t * 0.55)
         cx += 9 * math.sin(t * 0.83) + 4 * math.sin(t * 2.1 + 1.3)
