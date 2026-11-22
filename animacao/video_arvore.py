@@ -31,10 +31,13 @@ import video_estatua as ve  # noqa: E402
 import video_areia as va  # noqa: E402
 import video_azar as vz  # noqa: E402
 import video_lagrima as vl  # noqa: E402
+import ambiente as amb  # noqa: E402
+import boneco  # noqa: E402
 from gerar_video import (FPS, OUT_W, OUT_H, WW, WH, Pincel, gradiente, brilho,  # noqa: E402
                          ease_out, ease_io, particulas, texto_pop)
 
 g.HANDHELD = False           # câmera lisa, como na referência
+boneco.Boneco.AMP = 1.8      # personagens bem mais vivos
 random.seed(1717)
 _C = {}
 
@@ -57,7 +60,7 @@ VERDE, VERDE2 = (90, 170, 100), (70, 150, 90)
 # --------------------------------------------------------------------------
 # Árvores com cara
 # --------------------------------------------------------------------------
-def arvore(expr="neutro", fechado=False, folha=VERDE, tronco=(140, 96, 64), sway=0.0, w=340, so_tronco=False):
+def arvore(expr="neutro", fechado=False, folha=VERDE, tronco=(140, 96, 64), sway=0.0, w=340, so_tronco=False, boca=0):
     p = Pincel(420, 700)
     cx = 210
     # raízes
@@ -84,7 +87,11 @@ def arvore(expr="neutro", fechado=False, folha=VERDE, tronco=(140, 96, 64), sway
             p.linha([(ex - sx * 16, ey - 34 - sx * -4 * 0), (ex + sx * 14, ey - 44)], w=6)
         else:
             p.linha([(ex - 16, ey - 34), (ex + 16, ey - 38)], w=6)
-    if expr == "feliz" or expr == "ri":
+    if boca == 2:
+        p.elipse((cx - 17, 450, cx + 17, 492), (150, 40, 50), ow=5)
+    elif boca == 1:
+        p.elipse((cx - 13, 454, cx + 13, 476), (150, 40, 50), ow=5)
+    elif expr == "feliz" or expr == "ri":
         p.chord((cx - 22, 452, cx + 22, 490), 0, 180, (150, 40, 50), ow=5)
     elif expr == "triste" or expr == "chora":
         p.arco((cx - 20, 462, cx + 20, 488), 200, 340, w=6)
@@ -100,16 +107,20 @@ def arvore(expr="neutro", fechado=False, folha=VERDE, tronco=(140, 96, 64), sway
 
 
 class Arvore:
-    def __init__(self, folha=VERDE, tronco=(140, 96, 64), semente=0.0):
-        self.folha, self.tronco, self.semente = folha, tronco, semente
+    def __init__(self, folha=VERDE, tronco=(140, 96, 64), semente=0.0, filme=None):
+        self.folha, self.tronco, self.semente, self.filme = folha, tronco, semente, filme
         self.ultimo_bob = 0.0
 
-    def __call__(self, m, t, cx, by, e, expr="neutro", pose="idle", alpha=1.0, **kw):
-        sway = 6 * math.sin(t * 1.3 + self.semente)
+    def __call__(self, m, t, cx, by, e, expr="neutro", pose="idle", alpha=1.0, fala=None, **kw):
+        sway = 13 * math.sin(t * 1.5 + self.semente) + 5 * math.sin(t * 3.1 + self.semente)
         fechado = (int(t * g.FPS) % 110) in (0, 1, 2)
-        img = arvore(expr, fechado, self.folha, self.tronco, round(sway), 420)
+        boca = self.filme.boca_estado(fala) if (fala and self.filme) else 0
+        img = arvore(expr, fechado, self.folha, self.tronco, round(sway), 420, boca=boca)
         w = int(img.width * e)
         img = img.resize((w, int(img.height * e)), Image.BICUBIC)
+        # balanço do tronco inteiro + respiração
+        ang = 2.2 * math.sin(t * 1.1 + self.semente) + (1.2 * math.sin(t * 7) if boca else 0)
+        img = img.rotate(ang, resample=Image.BICUBIC, center=(w / 2, img.height - 30 * e))
         if alpha < 1:
             img.putalpha(img.getchannel("A").point(lambda v: int(v * alpha)))
         m.alpha_composite(img, (int(cx - w / 2), int(by - img.height + 30 * e)))
@@ -190,8 +201,18 @@ class FilmeArvore(va.FilmeAreia):
         P_ = lambda pal: ve.Pers(pal, self)  # noqa: E731
         self.vitor, self.moca, self.mocav = P_(VITOR), P_(MOCA), P_(MOCA_V)
         self.ex, self.outro, self.beb, self.cri = P_(EX), P_(OUTRO), P_(BEBADO), P_(CRIANCA)
-        self.av = Arvore(VERDE, (140, 96, 64), 0.0)             # o narrador
-        self.ar = Arvore(VERDE2, (120, 84, 60), 1.7)            # o Rodrigo
+        self.av = Arvore(VERDE, (140, 96, 64), 0.0, self)       # o narrador
+        self.ar = Arvore(VERDE2, (120, 84, 60), 1.7, self)      # o Rodrigo
+        self.fundo = [P_(c) for c in ve.POVO]                   # gente ao fundo
+        dlg = [(59.62, 66.5), (103.42, 110.2), (126.74, 132.2), (142.74, 149.0), (160.44, 165.4), (172.0, 172.2)]
+        self.FALA_MOCA = dlg
+        self.FALA_RODRIGO = [(165.54, 169.9)]
+        ini, narr = 0.0, []
+        for a, b in sorted(dlg + self.FALA_RODRIGO):
+            narr.append((ini, a))
+            ini = b
+        narr.append((ini, 999.0))
+        self.FALA_NARR = narr
         self.blur = {}
         self.f_leg = vc.fonte(fc, 50)
         self.palavras = palavras
@@ -250,6 +271,21 @@ class FilmeArvore(va.FilmeAreia):
         vw, vh = WW / zz, WH / zz
         return g.camera(m, cx - dx * u * vw, cy - dy * u * vh, zz)
 
+    def vida(self, m, t, hora):
+        """Elementos animados que dão vida ao fundo da praça."""
+        if hora in ("dia", "tarde", "inverno"):
+            amb.nuvens(m, t, n=5, seed=11, vel=22, alpha=230 if hora != "tarde" else 190)
+        if hora in ("dia", "tarde"):
+            amb.passaros(m, t, n=4, seed=12)
+            amb.folhas(m, t, n=16, seed=13)
+            amb.gente_fundo(m, t, self.fundo, n=5, seed=14, escala=0.4)
+        if hora == "tarde":
+            amb.raios_luz(m, t)
+        if hora == "noite":
+            amb.vagalumes(m, t, n=22)
+        if hora == "chuva":
+            amb.nuvens(m, t, n=6, seed=15, vel=26, cor=(120, 128, 142), alpha=235)
+
     # ----- utilidades -----
     def txt(self, f, s, t0, y=0.1, tam=58, cor=(255, 255, 255)):
         if self.T >= t0:
@@ -270,20 +306,21 @@ class FilmeArvore(va.FilmeAreia):
                    me="neutro", mpose="idle", banco=True, extra=None, cx=540, cy=1250, z=1.1, sentada=True,
                    lenco=True, fita=False, chuva=False):
         m = praca(hora).copy()
+        self.vida(m, t, hora)
         # narrador (esquerda) e Rodrigo (direita)
         if narr == "arvore":
-            self.av(m, t, 330, 1720, 1.15, expr=ne)
+            self.av(m, t, 330, 1720, 1.15, expr=ne, fala=self.FALA_NARR)
         elif narr == "humano":
-            self.vitor(m, t, 330, 1780, 1.2, expr=ne, pose="idle")
+            self.vitor(m, t, 330, 1780, 1.2, expr=ne, pose="idle", fala=self.FALA_NARR)
         if rod == "arvore":
-            self.ar(m, t, 810, 1720, 1.15, expr=re)
+            self.ar(m, t, 810, 1720, 1.15, expr=re, fala=self.FALA_RODRIGO)
         elif rod == "humano":
             self.outro(m, t, 810, 1780, 1.2, expr=re, pose="idle")
         if fita:
             laco(m, 570, 1330, 1.0, (250, 205, 60), 0)
         if moca:
             mx = moca
-            self.moca(m, t, mx, 1830 if sentada else 1800, 1.2, expr=me, pose=mpose)
+            self.moca(m, t, mx, 1830 if sentada else 1800, 1.2, expr=me, pose=mpose, fala=self.FALA_MOCA)
             if lenco:
                 laco(m, mx, 1830 - 325 * 1.2, 0.7, (235, 50, 60), 0)
         if banco:
@@ -716,6 +753,8 @@ def main():
     ap.add_argument("--saida", default=os.path.join(os.path.dirname(__file__), "video_arvore_da_praca.mp4"))
     ap.add_argument("--preview", default=None)
     ap.add_argument("--testar", action="store_true")
+    ap.add_argument("--de", type=float, default=None)
+    ap.add_argument("--ate", type=float, default=None)
     a = ap.parse_args()
 
     voz_dur = len(vc.ler_wav_mono(a.narracao)) / g.SR
@@ -740,6 +779,13 @@ def main():
     tmp = tempfile.mkdtemp(prefix="arvore_")
     wav = os.path.join(tmp, "mix.wav")
     mixar(filme, a.narracao, wav)
+    n0 = int((a.de or 0) * FPS)
+    n1 = int(a.ate * FPS) if a.ate else total
+    if a.de or a.ate:
+        tr = os.path.join(tmp, "trecho.wav")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(a.de or 0), "-t", str((n1 - n0) / FPS), "-i", wav, tr],
+                       check=True)
+        wav = tr
     print(f"• renderizando {total} frames ({filme.dur_total:.1f}s)…", flush=True)
     proc = subprocess.Popen(
         ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{OUT_W}x{OUT_H}",
@@ -747,7 +793,7 @@ def main():
          "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-maxrate", "6M", "-bufsize", "12M",
          "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", a.saida],
         stdin=subprocess.PIPE)
-    for n in range(total):
+    for n in range(n0, n1):
         proc.stdin.write(filme.frame(n).tobytes())
         if n % 150 == 0:
             print(f"  {n}/{total}", flush=True)

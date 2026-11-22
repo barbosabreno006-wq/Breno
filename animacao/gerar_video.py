@@ -172,7 +172,7 @@ CIDA = dict(pele=(214, 160, 120), cabelo=(220, 220, 228), camisa=(176, 120, 190)
             calca=(120, 90, 150), sapato=(110, 80, 70), tipo="vovo")
 
 
-def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False, so_cabeca=False):
+def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False, so_cabeca=False, olhar=0):
     W, H = 340, 640
     p = Pincel(W, H)
     pele, cab = pal["pele"], pal["cabelo"]
@@ -327,9 +327,10 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False, s
             p.elipse((ex - 30, ey - 36, ex + 30, ey + 36), (175, 178, 185) if cinza else (255, 255, 255), ow=6)
             dy = 6 if expr_olho == "triste" else 0
             pr = 15 if expr == "surpreso" else 19
-            p.elipse((ex - pr, ey - pr + dy, ex + pr, ey + pr + dy), (125, 128, 135) if cinza else OUTLINE, ow=0)
+            ox_ = olhar * 11
+            p.elipse((ex - pr + ox_, ey - pr + dy, ex + pr + ox_, ey + pr + dy), (125, 128, 135) if cinza else OUTLINE, ow=0)
             if not cinza:
-                p.elipse((ex - 9 + 6, ey - 12 + dy, ex + 1 + 6, ey - 2 + dy), (255, 255, 255), ow=0)
+                p.elipse((ex - 9 + 6 + ox_, ey - 12 + dy, ex + 1 + 6 + ox_, ey - 2 + dy), (255, 255, 255), ow=0)
     if oculos:  # óculos redondos
         for ex in (cx - 46, cx + 46):
             p.arco((ex - 40, ey - 42, ex + 40, ey + 42), 0, 360, fill=(120, 90, 60), w=6)
@@ -361,6 +362,8 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False, s
     if expr in ("feliz", "ri"):
         p.chord((cx - 40, my - 30, cx + 40, my + 34), 0, 180, (150, 40, 50), ow=6)
         p.chord((cx - 22, my + 6, cx + 22, my + 32), 0, 180, (235, 100, 110), ow=0)
+    elif expr == "fala_meia":
+        p.elipse((cx - 17, my - 2, cx + 17, my + 14), (150, 40, 50), ow=6)
     elif expr == "fala":
         p.elipse((cx - 24, my - 6, cx + 24, my + 28), (150, 40, 50), ow=6)
         p.chord((cx - 14, my + 10, cx + 14, my + 26), 0, 180, (235, 100, 110), ow=0)

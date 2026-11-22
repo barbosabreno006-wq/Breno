@@ -432,8 +432,12 @@ class Pers:
         env = getattr(self.filme, "env", None)
         i = int(T * FPS)
         self.a.amp = float(min(1, env[i] * 1.3)) if self.a.fala_ativa and env is not None and i < len(env) else 0.0
-        if fala and self.filme.boca_aberta(fala):
-            expr = "fala"
+        if fala:
+            b_ = self.filme.boca_estado(fala)
+            if b_ == 2:
+                expr = "fala"
+            elif b_ == 1:
+                expr = "fala_meia"
         self.a.desenhar(m, t, cx, by, escala=e, expr=expr, pose=pose, **kw)
 
 
@@ -551,12 +555,21 @@ class FilmeEstatua(vc.Filme):
         return rms / max(1e-6, np.percentile(rms, 95))
 
     def boca_aberta(self, janelas):
+        return self.boca_estado(janelas) > 0
+
+    def boca_estado(self, janelas):
+        """0 fechada, 1 meio aberta, 2 aberta — acompanha a amplitude da voz (lip-sync em 3 níveis)."""
         T = self.T
         if not any(a <= T < b for a, b in janelas):
-            return False
+            return 0
         i = int(T * FPS)
-        return i < len(self.env) and self.env[i] > 0.28 and (i // 3) % 2 == 0 or (
-            i < len(self.env) and self.env[i] > 0.7)
+        if i >= len(self.env):
+            return 0
+        v = self.env[i]
+        base = 2 if v > 0.55 else (1 if v > 0.2 else 0)
+        if base and (i // 2) % 3 == 2:
+            base -= 1
+        return base
 
     def fundo_blur(self, nome, img):
         if nome not in self.blur:

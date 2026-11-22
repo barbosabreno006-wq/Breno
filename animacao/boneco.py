@@ -79,6 +79,8 @@ def _ret_pts(x0, y0, x1, y1, r, sk=0.0, n=6):
 
 
 class Boneco:
+    AMP = 1.0          # multiplicador de movimento ocioso (1.0 = antigo; 1.8 = bem mais vivo)
+
     def __init__(self, pal):
         self.pal = pal
         self.ator = g.Ator(pal)
@@ -92,10 +94,10 @@ class Boneco:
     def spr(self, expr, pose, fechado=False):
         return self.ator.spr(expr, pose, fechado)
 
-    def cabeca(self, expr, fechado):
-        k = (expr, fechado)
+    def cabeca(self, expr, fechado, olhar=0):
+        k = (expr, fechado, olhar)
         if k not in self.cab:
-            self.cab[k] = g.desenhar_personagem(self.pal, expr, "idle", fechado, so_cabeca=True)
+            self.cab[k] = g.desenhar_personagem(self.pal, expr, "idle", fechado, so_cabeca=True, olhar=olhar)
         return self.cab[k]
 
     # ------------------------------------------------------------------
@@ -113,6 +115,16 @@ class Boneco:
         S["bob"] = 4 * _s(t * tw * 0.9)
         # braços em repouso balançando
         sw = 6 * _s(t * 1.3)
+        A = self.AMP
+        sw *= A
+        S["hrot"] *= A
+        S["hx"] *= A
+        S["rot"] *= A
+        S["bob"] *= (0.5 + 0.5 * A)
+        S["tdy"] *= A
+        # olhar: desvia os olhos de tempos em tempos (-1 esquerda, 0 frente, 1 direita)
+        ol = _s(t * 0.55 + self.semente) + 0.6 * _s(t * 1.7 + self.semente * 2)
+        S["olhar"] = 0 if abs(ol) < 0.7 * (1.0 if A > 1 else 9) else (1 if ol > 0 else -1)
         mE = (78 - 4 + sw * 0.5, 452)
         mD = (262 + 4 + sw * 0.5, 452)
         dobraE, dobraD = 1, -1
@@ -394,7 +406,7 @@ class Boneco:
         corpo = p.pronto()
 
         # ---- cabeça (gira no pescoço) ----
-        cab = self.cabeca(expr, fechado)
+        cab = self.cabeca(expr, fechado, S.get("olhar", 0))
         cab = cab.rotate(S["hrot"], resample=Image.BICUBIC, center=(170, 300))
         corpo.alpha_composite(cab, (int(o + hx + S["hdx"]), int(tdy + S["hdy"])))
         S["maos"] = ((mE[0] + o, mE[1]), (mD[0] + o, mD[1]))
