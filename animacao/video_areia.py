@@ -625,6 +625,9 @@ class FilmeAreia(ve.FilmeEstatua):
                     elif tr == "zoom":
                         f = g.zoom_blur(Image.blend(prev, f, ease_io(x)), 0.35 * math.sin(math.pi * x))
                 f = g.vinheta(f, 0.3)
+                if g.GRAO:
+                    import efeitos
+                    f = efeitos.grao(f, g.GRAO, n)
                 self.legenda(f, t)
                 return f
 

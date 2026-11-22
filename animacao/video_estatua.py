@@ -935,7 +935,11 @@ class FilmeEstatua(vc.Filme):
     def balao(self, f, txt, x, y, t, cor=(255, 255, 255)):
         if t < 0:
             return
-        fnt = vc.fonte(self.fc, 44)
+        tam_b = 44
+        fnt = vc.fonte(self.fc, tam_b)
+        while tam_b > 24 and fnt.getlength(txt) + 60 > OUT_W * 0.92:               # balão nunca passa da tela
+            tam_b -= 2
+            fnt = vc.fonte(self.fc, tam_b)
         w = fnt.getlength(txt) + 60
         s = 0.6 + 0.4 * ease_out(t / 0.2)
         cam = Image.new("RGBA", (int(w), 120), (0, 0, 0, 0))
@@ -944,6 +948,7 @@ class FilmeEstatua(vc.Filme):
         dc.polygon([(w * 0.3, 90), (w * 0.4, 90), (w * 0.28, 118)], fill=cor, outline=OUTLINE)
         dc.text((30, 20), txt, font=fnt, fill=(40, 40, 50))
         cam = cam.resize((int(cam.width * s), int(cam.height * s)), Image.BICUBIC)
+        x = max(cam.width / 2 + 10, min(OUT_W - cam.width / 2 - 10, x))
         f.paste(cam, (int(x - cam.width / 2), int(y)), cam)
 
     def p_duas_coisas(self, t, d):

@@ -274,12 +274,52 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False, s
     cx, cy, r = 170, 175, 122
     if vovo:  # coque atrás
         p.elipse((cx - 55, cy - r - 55, cx + 55, cy - r + 40), cab)
+    estilo = pal.get("cabelo_estilo")
+    if estilo == "longo":
+        p.elipse((cx - r - 30, cy - 60, cx + r + 30, cy + 300), cab)
+    elif estilo == "afro":
+        p.elipse((cx - r - 62, cy - r - 70, cx + r + 62, cy + r * 0.55), cab)
+    elif estilo == "coque":
+        p.elipse((cx - 56, cy - r - 90, cx + 56, cy - r + 10), cab)
+    elif estilo == "trancas":
+        for sx in (-1, 1):
+            for k in range(6):
+                p.elipse((cx + sx * (r + 6) - 26, cy + 20 + k * 52, cx + sx * (r + 6) + 26, cy + 70 + k * 52), cab, ow=5)
+            p.elipse((cx + sx * (r + 6) - 18, cy + 330, cx + sx * (r + 6) + 18, cy + 362), (230, 90, 110), ow=4)
+    elif estilo == "rabo":
+        p.elipse((cx + r - 30, cy - r + 6, cx + r + 70, cy + 80), cab)
     p.elipse((cx - r - 14, cy - 10, cx - r + 26, cy + 34), pele)  # orelhas
     p.elipse((cx + r - 26, cy - 10, cx + r + 14, cy + 34), pele)
     p.elipse((cx - r, cy - r, cx + r, cy + r), pele)
 
     # cabelo
-    if tipo == "vovo_h":
+    if estilo:
+        cap = (cx - r - 6, cy - r - 8, cx + r + 6, cy + r * 0.42)
+        if estilo in ("longo", "trancas", "rabo", "coque"):
+            p.chord(cap, 180, 360, cab)
+            p.chord((cx - 90, cy - r + 4, cx + 90, cy - 18), 180, 360, cab, ow=0)           # franja
+        elif estilo == "cacheado":
+            for k in range(11):
+                a = math.radians(190 + k * 16)
+                p.elipse((cx + (r * 0.98) * math.cos(a) - 38, cy - 10 + (r * 0.95) * math.sin(a) - 38,
+                          cx + (r * 0.98) * math.cos(a) + 38, cy - 10 + (r * 0.95) * math.sin(a) + 38), cab)
+            p.chord((cx - r + 10, cy - r + 6, cx + r - 10, cy - 20), 180, 360, cab, ow=0)
+        elif estilo == "afro":
+            p.chord(cap, 180, 360, cab)
+        elif estilo == "moicano":
+            for k in range(5):
+                x0 = cx - 60 + k * 30
+                p.poli([(x0 - 16, cy - r + 14), (x0 + 2, cy - r - 78 - (k % 2) * 24), (x0 + 22, cy - r + 14)], cab)
+        elif estilo == "careca":
+            p.elipse((cx - 64, cy - r + 8, cx - 20, cy - r + 44), (255, 255, 255), ow=0)
+        elif estilo == "ralo":
+            p.chord((cx - r - 4, cy - r - 4, cx + r + 4, cy - 50), 180, 360, cab)
+            p.elipse((cx - r - 6, cy - 40, cx - r + 28, cy + 14), cab, ow=0)
+            p.elipse((cx + r - 28, cy - 40, cx + r + 6, cy + 14), cab, ow=0)
+        elif estilo == "topete":
+            p.chord(cap, 180, 360, cab)
+            p.poli([(cx - 40, cy - r + 6), (cx - 4, cy - r - 70), (cx + 36, cy - r + 6)], cab)
+    elif tipo == "vovo_h":
         for sx in (-1, 1):
             p.elipse((cx + sx * (r - 8) - 34, cy - 70, cx + sx * (r - 8) + 34, cy + 20), cab)
         p.poli([(cx - 20, cy - r + 4), (cx - 4, cy - r - 30), (cx + 14, cy - r + 6)], cab, ow=5)
@@ -310,6 +350,23 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False, s
         p.poli([(cx - 30, cy - r + 6), (cx - 8, cy - r - 62), (cx + 12, cy - r + 2)], cab)
         p.poli([(cx + 2, cy - r + 4), (cx + 40, cy - r - 48), (cx + 46, cy - r + 14)], cab)
 
+    if pal.get("sardas"):
+        import random as _r
+        rg = _r.Random(5)
+        for _ in range(14):
+            x = cx + rg.randint(-70, 70)
+            y = cy + 40 + rg.randint(-6, 26)
+            p.elipse((x - 3, y - 3, x + 3, y + 3), tuple(max(0, c - 55) for c in pele), ow=0)
+    if pal.get("brinco"):
+        for sx in (-1, 1):
+            p.elipse((cx + sx * (r + 6) - 10, cy + 40, cx + sx * (r + 6) + 10, cy + 66), pal["brinco"], ow=4)
+    if pal.get("gorro"):
+        cc = pal["gorro"]
+        p.chord((cx - r - 6, cy - r - 24, cx + r + 6, cy + 20), 180, 360, cc)
+        p.ret((cx - r - 8, cy - 30, cx + r + 8, cy + 8), tuple(min(255, c + 30) for c in cc), r=14)
+        p.elipse((cx - 26, cy - r - 52, cx + 26, cy - r - 4), cc)
+    if pal.get("bandana"):
+        p.ret((cx - r + 4, cy - r + 54, cx + r - 4, cy - r + 92), pal["bandana"], r=10)
     if pal.get("chapeu"):  # quepe de carteiro
         cc = pal["chapeu"]
         p.chord((cx - r + 6, cy - r - 30, cx + r - 6, cy - r + 110), 180, 360, cc)
@@ -590,6 +647,7 @@ VARIACOES = [(1.0, "", 0), (1.6, "alvo", 0), (1.35, "alvo", 1), (1.5, "alvo", -1
              (1.7, "alvo", 0), (1.15, "flip", 0), (1.9, "alvo", 1), (1.45, "alvo", 2), (1.22, "flip", 1)]
 CORTE_ALVO = 2.1     # duração média de cada take (s); 0.77 = 13 cortes a cada 10 s
 CORTE_MIN = 1.3
+GRAO = 0.0           # grão de filme por cima do vídeo (0 = desligado)
 HANDHELD = True       # False: sem o balanço de câmera "na mão" (câmera lisa, como nas referências)
 PERMITE_FLIP = True   # False: nunca espelha o quadro (cenas com texto desenhado no mundo)
 FLIP = [False]  # espelha horizontalmente o quadro atual (variedade de cortes)
@@ -772,6 +830,9 @@ def particulas(img, t, n=26, cor=(255, 230, 150), semente=1):
 
 def texto_pop(img, txt, fonte, t, cx, cy, tam=90, cor=(255, 255, 255)):
     f = ImageFont.truetype(fonte, tam) if fonte else ImageFont.load_default()
+    while fonte and tam > 24 and f.getlength(txt) + 40 > img.width * 0.94:     # nunca estoura a tela
+        tam -= 2
+        f = ImageFont.truetype(fonte, tam)
     s = 0.4 + 0.6 * ease_out(t / 0.15) + 0.08 * math.sin(min(t, 0.4) * 25) * (t < 0.4)
     cam = Image.new("RGBA", (int(f.getlength(txt) + 40), tam + 50), (0, 0, 0, 0))
     ImageDraw.Draw(cam).text((20, 10), txt, font=f, fill=cor, stroke_width=8, stroke_fill=(20, 20, 26))

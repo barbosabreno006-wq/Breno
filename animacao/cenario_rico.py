@@ -121,6 +121,22 @@ def praca_rica(fc, hora="dia"):
     poste(p2, 330, 1430, 440)
     poste(p2, 760, 1430, 440)
     base.alpha_composite(p2.pronto())
+    # detalhes de rua: fios com pássaros, cartazes, vasos de planta, gente nas janelas
+    d2 = ImageDraw.Draw(base)
+    fio = (36, 38, 46, 255)
+    for (xa, xb) in ((330, 760), (760, 1120), (-40, 330)):
+        pts = [(xa + (xb - xa) * i / 20, 1000 + 38 * math.sin(math.pi * i / 20)) for i in range(21)]
+        d2.line(pts, fill=fio, width=4)
+    for x in (450, 600, 690):
+        d2.ellipse((x - 11, 968, x + 11, 992), fill=(60, 64, 80, 255))
+        d2.polygon([(x + 9, 976), (x + 24, 980), (x + 9, 984)], fill=(240, 180, 60, 255))
+    for i, (lx, nome) in enumerate(lojas):
+        d2.rectangle((lx + 214, 1000, lx + 248, 1060), fill=[(240, 90, 90), (90, 150, 230), (240, 200, 80), (110, 200, 130)][i % 4],
+                     outline=(43, 40, 58, 255), width=3)
+        d2.rectangle((lx + 14, 1196, lx + 46, 1226), fill=(150, 96, 64, 255), outline=(43, 40, 58, 255), width=3)
+        for ox, oy in ((-8, -22), (8, -26), (0, -34)):
+            d2.ellipse((lx + 30 + ox - 12, 1196 + oy - 12, lx + 30 + ox + 12, 1196 + oy + 12), fill=(80, 170, 100, 255),
+                       outline=(43, 40, 58, 255), width=2)
     if noite:
         for x in (330, 760):
             base.alpha_composite(brilho((620, 620), (255, 226, 150), 300, 0.55), (x - 310, 1430 - 440 - 70 - 300))

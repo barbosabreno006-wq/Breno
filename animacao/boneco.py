@@ -25,7 +25,7 @@ L_BRACO, L_ANTE = 66, 64
 QUADRIL_Y = 440
 L_COXA, L_CANELA = 70, 66
 POSES_RIG = {"idle", "aponta", "bate", "bate2", "entrega", "acena", "anda1", "anda2", "anda", "corre",
-             "abraca_d", "abraca_e", "bolso", "palmas", "bracos_abertos"}
+             "abraca_d", "abraca_e", "bolso", "palmas", "bracos_abertos", "sentado", "pega"}
 
 
 def _s(x):
@@ -303,6 +303,20 @@ class Boneco:
             dobraE, dobraD = -1, 1
             S["bob"] += 3 * abs(_s(t * 3))
 
+        elif pose == "sentado":
+            mE, mD = (118, 520), (208, 520)
+            dobraE, dobraD = 1, -1
+            S["bob"] *= 0.4
+        elif pose == "pega" and getattr(self, "mao_alvo", None):
+            mD = self.mao_alvo
+            dobraD = 1
+            S["hrot"] += 5 * _s(t * 2.0)
+
+        # sentar/levantar gradual (senta = 0..1): desce o tronco e dobra as pernas
+        k_s = 1.0 if pose == "sentado" else float(getattr(self, "senta", 0.0))
+        S["senta"] = k_s
+        S["tdy"] += 66 * k_s
+
         # ---------- pernas / caminhada ----------
         if pose in ("anda1", "anda2", "anda", "corre"):
             vel = 2.2 if pose == "corre" else 1.6
@@ -360,6 +374,21 @@ class Boneco:
                 # pé apoiado nunca afunda abaixo do chão
                 pe = (pe[0], min(pe[1], 576))
                 pernas.append(((hx_, hy_), joe, pe, lado))
+        if S.get("senta", 0) > 0:                        # pernas dobradas (coxa à frente, canela pra baixo)
+            ks = S["senta"]
+            novas = []
+            for (raiz, joe, pe, lado) in pernas:
+                if vestido:
+                    sr = (raiz[0], raiz[1] + 20)
+                    sj = (raiz[0] + 70, raiz[1] + 24)
+                    sp = (raiz[0] + 78, 578)
+                else:
+                    sr = (raiz[0], raiz[1] + 66)
+                    sj = (raiz[0] + 92, raiz[1] + 74)
+                    sp = (raiz[0] + 98, 576)
+                mix = lambda a, c: (a[0] + (c[0] - a[0]) * ks, a[1] + (c[1] - a[1]) * ks)  # noqa: E731
+                novas.append((mix(raiz, sr), mix(joe, sj), mix(pe, sp), lado))
+            pernas = novas
         # perna mais "atrás" primeiro
         for raiz, joe, pe, lado in pernas:
             cor = pele if vestido else pal["calca"]
@@ -401,6 +430,18 @@ class Boneco:
         # ---- tronco ----
         tb = (92 + hx + o, 310 + tdy, 248 + hx + o, 470 + tdy * 0.4)
         p.ret(tb, pal["camisa"], r=48)
+        if pal.get("listras"):
+            cl = pal["listras"]
+            for yy in range(336, 460, 28):
+                p.ret((96 + hx + o, yy + tdy, 244 + hx + o, yy + 12 + tdy), cl, r=3, ow=0)
+        if pal.get("colete"):
+            cv = pal["colete"]
+            p.poli([(100 + hx + o, 320 + tdy), (150 + hx + o, 320 + tdy), (140 + hx + o, 462 + tdy), (96 + hx + o, 462 + tdy)],
+                   cv, ow=5)
+            p.poli([(240 + hx + o, 320 + tdy), (190 + hx + o, 320 + tdy), (200 + hx + o, 462 + tdy), (244 + hx + o, 462 + tdy)],
+                   cv, ow=5)
+        if pal.get("avental"):
+            p.ret((120 + hx + o, 360 + tdy, 220 + hx + o, 480 + tdy), pal["avental"], r=14)
         if pal.get("faixas"):
             for y in (380, 420):
                 p.ret((96 + hx + o, y + tdy, 244 + hx + o, y + 14 + tdy), (225, 230, 235), r=4, ow=0)
@@ -409,6 +450,12 @@ class Boneco:
 
         if S.get("esq_frente"):
             _, mE = braco(oE, S["mE"], S["dobraE"], mao=not rosto)
+        if pal.get("bolso"):
+            p.ret((190 + hx + o, 372 + tdy, 228 + hx + o, 408 + tdy), tuple(max(0, c - 28) for c in pal["camisa"]), r=5, ow=5)
+        if pal.get("cachecol"):
+            cc_ = pal["cachecol"]
+            p.ret((130 + hx + o, 298 + tdy, 210 + hx + o, 332 + tdy), cc_, r=14)
+            p.ret((190 + hx + o, 320 + tdy, 218 + hx + o, 410 + tdy), cc_, r=8)
         _, mD = braco(oD, S["mD"], S["dobraD"], mao=not rosto)
         if S.get("dedo") and not rosto:
             p.capsula((mD[0] + o + 10, mD[1] - 14), (mD[0] + o + 18, mD[1] - 46), 13, pele, ow=4)
@@ -441,7 +488,9 @@ class Boneco:
         return corpo, S
 
     def desenhar(self, base, t, cx, by, escala=1.0, expr="neutro", pose="idle",
-                 rot=0.0, piscar=True, alpha=1.0, pulo=0.0, sx=1.0):
+                 rot=0.0, piscar=True, alpha=1.0, pulo=0.0, sx=1.0, mao_alvo=None, senta=0.0):
+        self.mao_alvo = mao_alvo
+        self.senta = senta
         if pose not in POSES_RIG:            # poses especiais (ajoelhado…) usam o sprite antigo
             return self.ator.desenhar(base, t, cx, by, escala, expr, pose, rot, piscar, alpha, pulo)
         fechado = piscar and (int(t * g.FPS) % 95) in (0, 1, 2)
@@ -453,5 +502,6 @@ class Boneco:
         respira = 1 + 0.012 * math.sin(t * 2 * math.pi * 0.9) + S["sq"]
         if sx < 0:
             img = img.transpose(Image.FLIP_LEFT_RIGHT)
-        g.colar(base, img, cx, by - S["bob"] - pulo, escala, sx=2 - respira, sy=respira,
+        larg, alt = self.pal.get("largura", 1.0), self.pal.get("altura", 1.0)
+        g.colar(base, img, cx, by - S["bob"] - pulo, escala, sx=(2 - respira) * larg, sy=respira * alt,
                 rot=rot + S["rot"], alpha=alpha)

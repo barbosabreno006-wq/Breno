@@ -137,3 +137,14 @@ def moldura_redonda(f, cor=(190, 150, 40), esp=26):
     d.ellipse((w / 2 - r, h / 2 - r, w / 2 + r, h / 2 + r), outline=cor, width=esp)
     d.ellipse((w / 2 - r + esp, h / 2 - r + esp, w / 2 + r - esp, h / 2 + r - esp), outline=(255, 232, 150), width=4)
     return res
+
+
+def grao(f, forca=0.5, quadro=0):
+    """Grão de filme/papel por cima da imagem (unifica o desenho e tira o aspecto 'digital liso')."""
+    w, h = f.size
+    k = ("grao", w, h, quadro % 6)
+    if k not in _C:
+        rng = np.random.default_rng(100 + quadro % 6)
+        _C[k] = rng.standard_normal((h, w, 1)).astype(np.float32)
+    a = np.asarray(f).astype(np.float32) + _C[k] * (6.0 * forca)
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
