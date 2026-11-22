@@ -179,7 +179,7 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False, s
     tipo = pal["tipo"]
     vovo = tipo == "vovo"
     vestido = tipo in ("vovo", "moca")
-    oculos = tipo in ("vovo", "vovo_h")
+    oculos = tipo in ("vovo", "vovo_h") or bool(pal.get("oculos"))
     adulto = tipo == "pai"
     if expr == "chora":
         expr_olho = "triste"
@@ -328,9 +328,18 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False, s
             dy = 6 if expr_olho == "triste" else 0
             pr = 15 if expr == "surpreso" else 19
             ox_ = olhar * 11
-            p.elipse((ex - pr + ox_, ey - pr + dy, ex + pr + ox_, ey + pr + dy), (125, 128, 135) if cinza else OUTLINE, ow=0)
-            if not cinza:
-                p.elipse((ex - 9 + 6 + ox_, ey - 12 + dy, ex + 1 + 6 + ox_, ey - 2 + dy), (255, 255, 255), ow=0)
+            iris = pal.get("iris", (110, 80, 52))
+            if cinza:
+                p.elipse((ex - pr + ox_, ey - pr + dy, ex + pr + ox_, ey + pr + dy), (125, 128, 135), ow=0)
+            else:
+                ir = pr + 5                                                   # íris colorida com anel escuro
+                p.elipse((ex - ir + ox_, ey - ir + dy, ex + ir + ox_, ey + ir + dy), tuple(int(c * 0.55) for c in iris), ow=0)
+                p.elipse((ex - ir + 3 + ox_, ey - ir + 3 + dy, ex + ir - 3 + ox_, ey + ir - 3 + dy), iris, ow=0)
+                p.elipse((ex - pr * 0.62 + ox_, ey - pr * 0.62 + dy, ex + pr * 0.62 + ox_, ey + pr * 0.62 + dy), OUTLINE, ow=0)
+                p.elipse((ex - 12 + 6 + ox_, ey - 16 + dy, ex + 0 + 6 + ox_, ey - 4 + dy), (255, 255, 255), ow=0)   # brilho grande
+                p.elipse((ex + 6 + 4 + ox_, ey + 4 + dy, ex + 13 + 4 + ox_, ey + 11 + dy), (255, 255, 255), ow=0)    # brilho pequeno
+                # pálpebra superior (dá expressão e profundidade)
+                p.arco((ex - 31, ey - 37, ex + 31, ey + 29), 200, 340, fill=OUTLINE, w=9)
     if oculos:  # óculos redondos
         for ex in (cx - 46, cx + 46):
             p.arco((ex - 40, ey - 42, ex + 40, ey + 42), 0, 360, fill=(120, 90, 60), w=6)

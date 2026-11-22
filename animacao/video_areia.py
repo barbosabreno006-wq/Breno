@@ -617,6 +617,9 @@ class FilmeAreia(ve.FilmeEstatua):
                         comp.paste(prev, (-off, 0))
                         comp.paste(f, (OUT_W - off, 0))
                         f = g.motion_blur_h(comp, 60 * math.sin(math.pi * x))
+                    elif tr == "iris":
+                        import efeitos
+                        f = efeitos.iris(prev, f, ease_io(x))
                     elif tr == "dissolve":
                         f = Image.blend(prev, f, ease_io(x))
                     elif tr == "zoom":

@@ -55,6 +55,26 @@ def fk(raiz, ang1, ang2, l1, l2):
     return (jx, jy), (jx + l2 * math.sin(a2), jy + l2 * math.cos(a2))
 
 
+def sombreado(img, forca=1.0):
+    """Sombreado suave + contorno de luz (dá volume ao personagem 'chapado')."""
+    import numpy as np
+    a = np.asarray(img).astype(np.float32)
+    h, w = a.shape[:2]
+    alfa = a[..., 3] / 255.0
+    xx = np.linspace(0, 1, w)[None, :]
+    yy = np.linspace(0, 1, h)[:, None]
+    luz = 1.06 - 0.16 * xx - 0.07 * yy                       # luz vem de cima à esquerda
+    luz = 1 + (luz - 1) * forca
+    rgb = a[..., :3] * luz[..., None]
+    # contorno de luz: borda esquerda/superior do corpo clareada
+    desl = np.zeros_like(alfa)
+    desl[:, 4:] = alfa[:, :-4]
+    borda = np.clip(alfa - desl, 0, 1) * alfa
+    rgb = rgb + 55 * forca * borda[..., None]
+    a[..., :3] = np.clip(rgb, 0, 255)
+    return Image.fromarray(a.astype(np.uint8), "RGBA")
+
+
 def membro(p, pts, w, cor):
     """Membro de 2+ segmentos sem 'costura' na articulação (contorno de tudo, depois o recheio)."""
     s = p.s
@@ -79,6 +99,7 @@ def _ret_pts(x0, y0, x1, y1, r, sk=0.0, n=6):
 
 
 class Boneco:
+    SHADE = 0.0        # sombreado + contorno de luz (0 = desligado; 1.0 = ligado)
     AMP = 1.0          # multiplicador de movimento ocioso (1.0 = antigo; 1.8 = bem mais vivo)
 
     def __init__(self, pal):
@@ -410,6 +431,8 @@ class Boneco:
         cab = cab.rotate(S["hrot"], resample=Image.BICUBIC, center=(170, 300))
         corpo.alpha_composite(cab, (int(o + hx + S["hdx"]), int(tdy + S["hdy"])))
         S["maos"] = ((mE[0] + o, mE[1]), (mD[0] + o, mD[1]))
+        if self.SHADE > 0:
+            corpo = sombreado(corpo, self.SHADE)
         if S["maos_rosto"]:  # mãos por cima do rosto (choro)
             q = Pincel(CW, CH)
             for m in (mE, mD):
