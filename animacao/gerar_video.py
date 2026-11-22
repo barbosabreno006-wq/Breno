@@ -647,6 +647,9 @@ VARIACOES = [(1.0, "", 0), (1.6, "alvo", 0), (1.35, "alvo", 1), (1.5, "alvo", -1
              (1.7, "alvo", 0), (1.15, "flip", 0), (1.9, "alvo", 1), (1.45, "alvo", 2), (1.22, "flip", 1)]
 CORTE_ALVO = 2.1     # duração média de cada take (s); 0.77 = 13 cortes a cada 10 s
 CORTE_MIN = 1.3
+GANCHO_DUR = 10.0    # nos primeiros segundos o vídeo corta bem mais rápido (gancho), como nas referências
+GANCHO_ALVO = 0.8    # duração média de cada cena durante o gancho (s)
+GANCHO_MIN = 0.55
 GRAO = 0.0           # grão de filme por cima do vídeo (0 = desligado)
 HANDHELD = True       # False: sem o balanço de câmera "na mão" (câmera lisa, como nas referências)
 PERMITE_FLIP = True   # False: nunca espelha o quadro (cenas com texto desenhado no mundo)
@@ -663,19 +666,25 @@ def subcortes(planos, palavras, alvo=None, minimo=None):
     out = []
     for ini, d, *_r in planos:
         out.append((ini, 0))
-        n = int(d / alvo + 0.35)
-        if n < 2:
-            continue
+        # dentro do gancho os takes são curtos; depois voltam ao ritmo normal
         ult = ini
-        for k in range(1, n):
-            alvo_t = ini + k * d / n
-            c = min(inicios, key=lambda s: abs(s - alvo_t)) if inicios else alvo_t
-            if abs(c - alvo_t) > 0.6:
+        k = 0
+        while True:
+            a_loc = GANCHO_ALVO if ult < GANCHO_DUR else alvo
+            m_loc = GANCHO_MIN if ult < GANCHO_DUR else minimo
+            alvo_t = ult + a_loc
+            if alvo_t >= ini + d - m_loc:
+                break
+            c = min(inicios, key=lambda s_: abs(s_ - alvo_t)) if inicios else alvo_t
+            if abs(c - alvo_t) > 0.6 * (a_loc / 2.1 + 0.3):
                 c = alvo_t
-            if c - ult >= minimo and ini + d - c >= minimo:
+            if c - ult >= m_loc and ini + d - c >= m_loc:
+                k += 1
                 out.append((c, 1 + (k - 1 + int(ini * 7)) % (len(VARIACOES) - 1) if k % 2 else
                             (0 if k % 4 == 2 else 1 + (k + 2 + int(ini * 7)) % (len(VARIACOES) - 1))))
                 ult = c
+            else:
+                ult = alvo_t
     out.sort()
     return out
 
