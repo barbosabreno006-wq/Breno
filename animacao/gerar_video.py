@@ -276,7 +276,9 @@ def desenhar_personagem(pal, expr="neutro", pose="idle", olhos_fechados=False, s
         p.elipse((cx - 55, cy - r - 55, cx + 55, cy - r + 40), cab)
     estilo = pal.get("cabelo_estilo")
     if estilo == "longo":
-        p.elipse((cx - r - 30, cy - 60, cx + r + 30, cy + 300), cab)
+        for sx_ in (-1, 1):                                              # mechas dos lados (sem cobrir o queixo)
+            p.elipse((cx + sx_ * (r + 6) - 44, cy - 50, cx + sx_ * (r + 6) + 44, cy + 210), cab)
+        p.elipse((cx - r - 10, cy - 70, cx + r + 10, cy + 40), cab)
     elif estilo == "afro":
         p.elipse((cx - r - 62, cy - r - 70, cx + r + 62, cy + r * 0.55), cab)
     elif estilo == "coque":
