@@ -38,25 +38,30 @@ from gerar_video import (FPS, OUT_W, OUT_H, WW, WH, Pincel, gradiente, brilho,  
 
 g.HANDHELD = False
 boneco.Boneco.AMP = 1.7
+boneco.Boneco.SHADE = 1.0     # sombreado + contorno de luz
+g.GRAO = 0.6                  # grão de filme
 random.seed(2525)
 
 MARTA = dict(pele=(232, 186, 150), cabelo=(120, 78, 56), camisa=(150, 90, 170), calca=(110, 70, 130),
-             sapato=(60, 50, 60), tipo="vovo", vestido=(150, 90, 170))
+             sapato=(60, 50, 60), tipo="vovo", vestido=(150, 90, 170), cabelo_estilo="coque", oculos=True,
+             iris=(70, 110, 70), cachecol=(235, 190, 70))
 MARTA_V = dict(MARTA, cabelo=(226, 226, 232), camisa=(235, 242, 248), vestido=(235, 242, 248))
 PEDRINHO = dict(pele=(232, 186, 150), cabelo=(240, 200, 80), camisa=(110, 190, 130), calca=(80, 90, 150),
-                sapato=(230, 230, 235), tipo="menino")
+                sapato=(230, 230, 235), tipo="menino", cabelo_estilo="topete", sardas=True, iris=(70, 130, 190),
+                bolso=True)
 PEDRO_AD = dict(pele=(232, 186, 150), cabelo=(240, 200, 80), camisa=(70, 140, 200), calca=(60, 120, 180),
                 sapato=(240, 240, 245), tipo="pai", bigode=False, chapeu=(70, 140, 200))
 CIRURGIAO = dict(pele=(214, 160, 120), cabelo=(60, 44, 36), camisa=(80, 170, 170), calca=(70, 150, 150),
                  sapato=(240, 240, 245), tipo="pai", bigode=False, chapeu=(80, 170, 170))
 LUCIA = dict(pele=(222, 170, 128), cabelo=(70, 44, 32), camisa=(214, 120, 160), calca=(0, 0, 0),
-             sapato=(120, 70, 90), tipo="moca", vestido=(214, 120, 160))
-VITORIA = dict(pele=(214, 160, 120), cabelo=(150, 70, 200), camisa=(255, 100, 190), calca=(0, 0, 0),
-               sapato=(200, 60, 140), tipo="moca", vestido=(255, 100, 190))
-RAFAEL = dict(pele=(196, 140, 100), cabelo=(35, 28, 26), camisa=(240, 150, 60), calca=(70, 80, 110),
-              sapato=(50, 50, 55), tipo="menino")
-FOTOGRAFO = dict(pele=(232, 186, 150), cabelo=(90, 60, 40), camisa=(230, 230, 236), calca=(60, 62, 80),
-                 sapato=(40, 40, 45), tipo="pai")
+             sapato=(120, 70, 90), tipo="moca", vestido=(214, 120, 160), cabelo_estilo="longo", brinco=(250, 210, 60),
+             iris=(80, 60, 40))
+VITORIA = dict(pele=(160, 110, 80), cabelo=(150, 70, 200), camisa=(255, 100, 190), calca=(0, 0, 0),
+               sapato=(200, 60, 140), tipo="moca", vestido=(255, 100, 190), cabelo_estilo="cacheado", iris=(100, 60, 40))
+RAFAEL = dict(pele=(150, 100, 70), cabelo=(35, 28, 26), camisa=(240, 150, 60), calca=(70, 80, 110),
+              sapato=(50, 50, 55), tipo="menino", cabelo_estilo="afro", listras=(255, 255, 255), iris=(60, 40, 30))
+FOTOGRAFO = dict(pele=(232, 186, 150), cabelo=(150, 150, 156), camisa=(230, 230, 236), calca=(60, 62, 80),
+                 sapato=(40, 40, 45), tipo="pai", cabelo_estilo="ralo", oculos=True, colete=(90, 90, 110))
 MEDICO = dict(pele=(232, 186, 150), cabelo=(150, 150, 156), camisa=(248, 248, 252), calca=(120, 140, 170),
               sapato=(240, 240, 245), tipo="pai", bigode=False, gravata=(80, 150, 210))
 vc.DESTAQUE_VERMELHO = set()
@@ -125,8 +130,11 @@ class FilmeFoto(va.FilmeAreia):
             sub_cont[bi] = sub_cont.get(bi, -1) + 1
             ult_beat.append((bi, sub_cont[bi]))
         self.planos, self.sfx_cortes = [], []
+        iris_em = {"b_lembrou", "b_25anos", "b_mesmo_menino", "b_abriu_olhos", "b_morreu", "b_sumiu"}
         for i, ((a, d), c) in enumerate(zip(iniciais, camera)):
-            self.planos.append((a, d, self._fazer(i, c, ult_beat[i]), "", "corte"))
+            bi, sub = ult_beat[i]
+            tr = "iris" if (sub == 0 and self.beats[bi][1].__name__ in iris_em) else "corte"
+            self.planos.append((a, d, self._fazer(i, c, ult_beat[i]), "", tr))
             if i:
                 self.sfx_cortes.append(a)
         self.p_preto = None
@@ -134,8 +142,9 @@ class FilmeFoto(va.FilmeAreia):
     # ----- câmera copiada da referência -----
     def spec_de(self, i, c):
         r = c.get("r", 0)
-        if r >= 0.4:
-            return min(1.3, max(0.85, c["zoom"])), max(-0.12, min(0.12, c["dx"])), max(-0.12, min(0.12, c["dy"]))
+        z, dx, dy = c.get("zoom", 1.0), c.get("dx", 0.0), c.get("dy", 0.0)
+        if r >= 0.4 and 0.7 <= z <= 1.6 and abs(dx) < 0.35 and abs(dy) < 0.35:      # medição plausível
+            return min(1.35, max(0.8, z)), max(-0.15, min(0.15, dx)), max(-0.15, min(0.15, dy))
         return (1.07 if i % 2 == 0 else 0.95), 0.0, 0.0
 
     def _fazer(self, i, c, bs):
@@ -649,31 +658,22 @@ def _tom(c, f):
 
 # --------------------------------------------------------------------------
 def mixar(filme, narracao, saida):
-    SR = g.SR
+    import som
+    SR = som.SR
     voz = vc.ler_wav_mono(narracao)
-    n = int(filme.dur_total * SR)
-    mix = np.zeros(n, np.float32)
-    mix[:min(n, len(voz))] += voz[:n]
-    mus = g.trilha(filme.dur_total)
-    mus = mus / max(1e-6, np.abs(mus).max()) * 0.11
-    mix[:len(mus)] += mus[:n]
+    dur = filme.dur_total
     ev = []
     for i, c in enumerate(filme.sfx_cortes):
-        ev.append(("whoosh" if i % 3 == 0 else "pop", c - 0.04))
-    ev += [("brilho", 1.4), ("brilho", 31.6), ("toc", 58.12), ("toc", 125.24), ("brilho", 134.2), ("toc", 152.8),
-           ("toc", 157.4)]
-    # alarme do monitor (116–125 s) — bipes
+        ev.append(("whoosh" if i % 3 == 0 else "pop", c - 0.04, 0.22 if i % 3 == 0 else 0.2))
+    ev += [("shutter", 1.4, 0.6), ("shutter", 31.6, 0.5), ("hit", 58.12, 0.5), ("hit", 125.24, 0.9), ("hit", 134.2, 0.5),
+           ("pagina", 25.0, 0.4), ("pagina", 56.0, 0.3), ("coracao", 83.1, 0.8), ("coracao", 84.0, 0.8),
+           ("riser", 116.0, 0.45), ("hit", 152.8, 0.7), ("hit", 157.4, 0.8)]
     for k in range(int((125.2 - 116.2) / 0.5)):
-        ev.append(("ding", 116.2 + k * 0.5))
-    for tipo, t0 in ev:
-        s = g.sfx(tipo) if tipo != "ding" else g.sfx("brilho") * 0.6
-        s = s * (0.25 if tipo in ("whoosh", "pop") else 0.8)
-        a = int(max(0, t0) * SR)
-        b = min(n, a + len(s))
-        mix[a:b] += s[: b - a]
-    fade = int(SR * 1.2)
-    mix[-fade:] *= np.linspace(1, 0, fade)
-    mix = mix / max(1.0, np.abs(mix).max() / 0.95)
+        ev.append(("bip", 116.2 + k * 0.5, 0.55))
+    amb = [("escola", 0.0, 80.0, 0.45), ("cidade", 80.0, 95.0, 0.4), ("hospital", 95.0, 116.0, 0.5),
+           ("hospital", 126.0, dur - 2, 0.35)]
+    picos = [(58, 0.7), (84, 0.6), (116, 0.9), (125.3, 1.0), (138, 0.8), (157.4, 0.9)]
+    mix = som.mixar_v2(dur, voz, ev, amb, picos, "triste", 0.2)
     with wave.open(saida, "wb") as w:
         w.setnchannels(1)
         w.setsampwidth(2)
@@ -740,10 +740,8 @@ def main():
          "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-maxrate", "6M", "-bufsize", "12M",
          "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", a.saida],
         stdin=subprocess.PIPE)
-    for n in range(n0, n1):
-        proc.stdin.write(filme.frame(n).tobytes())
-        if n % 150 == 0:
-            print(f"  {n}/{total}", flush=True)
+    import render
+    render.renderizar(filme, n0, n1, proc.stdin, progresso=True, total=total)
     proc.stdin.close()
     proc.wait()
     print("✔ vídeo salvo em", a.saida)
