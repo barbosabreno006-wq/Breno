@@ -1,0 +1,596 @@
+#!/usr/bin/env python3
+"""
+"O Apagador" — numa cidade todo mundo é apaixonado pelo narrador, mas é a Admiradora (alta, sem rosto,
+sorriso enorme, coração no peito) que mexe com a cabeça de todos. Quem para de amar some.
+
+Feito no estilo da referência "cidade de cegos" (mesma grade de cortes e movimentos de câmera, medidos por ORB):
+  * 41 cortes (grade da referência, encaixada nas palavras da narração) e câmera por cena;
+  * cada cena com lugar e objetos próprios; só legenda + balões de fala.
+
+    python3 animacao/video_todos.py --narracao n.mp3 --transcricao t.json --camera camera.json --fonte Poppins.ttf
+"""
+import argparse
+import json
+import math
+import os
+import random
+import subprocess
+import sys
+import tempfile
+import wave
+
+import numpy as np
+from PIL import Image, ImageDraw, ImageFilter
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import gerar_video as g  # noqa: E402
+import video_carta as vc  # noqa: E402
+import video_estatua as ve  # noqa: E402
+import video_areia as va  # noqa: E402
+import ambiente as amb  # noqa: E402
+import boneco  # noqa: E402
+import cenario_rico as cr  # noqa: E402
+import cenario_escola as cs  # noqa: E402
+import cenario_selo as cz  # noqa: E402
+import cenario_amor as ca  # noqa: E402
+import cenario_apagador as ca2  # noqa: E402
+import efeitos as ef  # noqa: E402
+from gerar_video import (FPS, OUT_W, OUT_H, WW, WH, Pincel, gradiente, brilho,  # noqa: E402
+                         ease_out, ease_io)
+
+g.HANDHELD = False
+g.PERMITE_FLIP = False
+boneco.Boneco.AMP = 1.7
+boneco.Boneco.SHADE = 1.0
+g.GRAO = 0.6
+random.seed(4242)
+
+NARR = dict(pele=(232, 186, 150), cabelo=(70, 44, 32), camisa=(70, 130, 220), calca=(60, 70, 110),
+            sapato=(240, 240, 245), tipo="menino", cabelo_estilo="topete", iris=(70, 110, 190), bolso=True)
+BIA = dict(pele=(232, 186, 150), cabelo=(150, 70, 40), camisa=(240, 120, 150), calca=(0, 0, 0), sapato=(230, 230, 235),
+           tipo="moca", vestido=(240, 120, 150), cabelo_estilo="rabo", iris=(70, 110, 70), oculos=True)
+MAE = dict(pele=(232, 186, 150), cabelo=(120, 78, 56), camisa=(150, 90, 170), calca=(0, 0, 0), sapato=(110, 80, 90),
+           tipo="moca", vestido=(150, 90, 170), cabelo_estilo="coque")
+MAE_BIA = dict(pele=(222, 170, 128), cabelo=(150, 70, 40), camisa=(80, 170, 170), calca=(0, 0, 0), sapato=(70, 110, 110),
+               tipo="moca", vestido=(80, 170, 170), cabelo_estilo="cacheado")
+vc.DESTAQUE_VERMELHO = set()
+_C = {}
+_T = {}
+
+
+class FilmeTodos(va.FilmeAreia):
+    def __init__(self, palavras, fc, dur_total, narracao, camera, ancoras):  # noqa: C901
+        self.fc = fc
+        self.dur_total = dur_total
+        print("• pré-renderizando arte…")
+        self.env = self.envelope(narracao)
+        P_ = lambda pal: ve.Pers(pal, self)  # noqa: E731
+        self.narr, self.bia, self.mae, self.maeb = P_(NARR), P_(BIA), P_(MAE), P_(MAE_BIA)
+        self.kids = [P_(c) for c in ve.POVO]
+        self.f_leg = vc.fonte(fc, 50)
+        self.palavras = palavras
+        self.blocos = self._blocos(palavras)
+        self.cortes = [(0.0, 0)]
+        self.spec, self.u, self.sub = None, 0.0, 0
+        self.dlg = {"bia": [(43.78, 46.0)]}
+        self.inicios = np.array([w["s"] for w in palavras])
+        self.beats = self._beats()
+        ra = np.array([a for a, _ in ancoras])
+        oa = np.array([b for _, b in ancoras])
+        n = len(camera)
+        iniciais = []
+        for i, c in enumerate(camera):
+            a = 0.0 if i == 0 else self._encaixar(float(np.interp(c["ini"], ra, oa)))
+            iniciais.append(a)
+        iniciais = [0.0] + [max(iniciais[i], iniciais[i - 1] + 0.3) for i in range(1, n)]
+        fins = iniciais[1:] + [dur_total]
+        sub_cont, ult = {}, []
+        for a, b in zip(iniciais, fins):
+            bi = self._achar_idx((a + b) / 2)
+            sub_cont[bi] = sub_cont.get(bi, -1) + 1
+            ult.append((bi, sub_cont[bi]))
+        self.planos, self.sfx_cortes = [], []
+        iris_em = {"b_relogio", "b_apagador", "b_manha", "b_bia", "b_manha2", "b_sol", "b_cinco_anos", "b_fim"}
+        for i, (a, b) in enumerate(zip(iniciais, fins)):
+            bi, sub = ult[i]
+            tr = "iris" if (sub == 0 and self.beats[bi][1].__name__ in iris_em) else "corte"
+            self.planos.append((a, max(0.2, b - a), self._fazer(i, camera[i], ult[i]), "", tr))
+            if i:
+                self.sfx_cortes.append(a)
+        self.p_preto = None
+
+    def _encaixar(self, t):
+        """Puxa o corte para o início de palavra mais próximo (até 0.3 s)."""
+        j = int(np.argmin(np.abs(self.inicios - t)))
+        return float(self.inicios[j]) if abs(self.inicios[j] - t) < 0.3 else t
+
+    # ----- câmera copiada da referência -----
+    def spec_de(self, i, c):
+        r = c.get("r", 0)
+        z, dx, dy = c.get("zoom", 1.0), c.get("dx", 0.0), c.get("dy", 0.0)
+        if r >= 0.4 and 0.7 <= z <= 1.6 and abs(dx) < 0.35 and abs(dy) < 0.35:
+            return min(1.35, max(0.8, z)), max(-0.15, min(0.15, dx)), max(-0.15, min(0.15, dy))
+        return (1.07 if i % 2 == 0 else 0.95), 0.0, 0.0
+
+    def _fazer(self, i, c, bs):
+        z, dx, dy = self.spec_de(i, c)
+        bi, sub = bs
+
+        def fn(t, d):
+            self.spec = (z, dx, dy)
+            self.u = ease_io(min(1, t / max(0.1, d)))
+            self.sub = sub
+            return self.beats[bi][1](t, d, self.T)
+        return fn
+
+    def cam(self, m, cx, cy, zb):
+        z, dx, dy = self.spec if self.spec else (1.0, 0, 0)
+        u = self.u
+        s = self.sub
+        cx = cx + (-1, 0, 1)[s % 3] * 70
+        zb = zb * (1.0, 1.12, 1.25, 1.06)[s % 4]
+        zz = zb * (1 + (z - 1) * u) if z >= 1 else zb / z * (z ** u)
+        vw, vh = WW / zz, WH / zz
+        return g.camera(m, cx - dx * u * vw, cy - dy * u * vh, zz)
+
+    def _achar_idx(self, t):
+        idx = 0
+        for i, (ini, _) in enumerate(self.beats):
+            if ini <= t:
+                idx = i
+        return idx
+
+    # ----- utilidades de cena -----
+    def balao_t(self, f, txt, x, y, t0):
+        if self.T >= t0:
+            self.balao(f, txt, x, y, self.T - t0)
+
+    def S(self, bg, chars=(), props=(), cam=(540, 1250, 1.3), t=0.0, bal=(), fx=None, front=()):
+        m = bg.copy()
+        for pers, x, by, e, expr, pose, fala, sx in chars:
+            cr.sombra(m, x, by - 4, e * 250)
+            pers(m, t, x, by, e, expr=expr, pose=pose, fala=fala, sx=sx)
+        for pr in props:
+            pr(m)
+        for pr in front:
+            pr(m)
+        f = self.cam(m, *cam)
+        for txt, x, y, t0 in bal:
+            if len(txt) > 24:
+                w_ = txt.split(" ")
+                mid = len(txt) / 2
+                acum, cut = 0, len(w_) // 2
+                for i_, p_ in enumerate(w_):
+                    acum += len(p_) + 1
+                    if acum >= mid:
+                        cut = i_ + 1
+                        break
+                self.balao_t(f, " ".join(w_[:cut]), x, y, t0)
+                self.balao_t(f, " ".join(w_[cut:]), x, y + OUT_H * 0.085, t0 + 0.25)
+            else:
+                self.balao_t(f, txt, x, y, t0)
+        if fx:
+            f = fx(f)
+        return f
+
+    def C(self, pers, x, by, e=1.4, expr="neutro", pose="idle", fala=None, sx=1):
+        return (pers, x, by, e, expr, pose, fala, sx)
+
+    def img(self, im, x, y, rot=0.0):
+        def f(m):
+            i2 = im.rotate(rot, expand=True, resample=Image.BICUBIC) if rot else im
+            m.alpha_composite(i2, (int(x - i2.width / 2), int(y - i2.height / 2)))
+        return f
+
+    def adm(self, x, by, h=1500, t=0.0, boca=1.0, giro=0.0):
+        def f(m):
+            im = ca.admiradora(h, 0.5 + 0.5 * math.sin(t * 5.5), boca, giro)
+            cr.sombra(m, x, by - 4, h * 0.22)
+            m.alpha_composite(im, (int(x - im.width / 2), int(by - im.height)))
+        return f
+
+    def cor_bal(self, x, y, t, n=5, w=44, seed=1):
+        def f(m):
+            ca.coracoes_flutuando(m, t, x, y, n, w, seed)
+        return f
+
+    # ----- cenários -----
+    def rua(self, hora="dia"):
+        k = ("rua", hora)
+        if k not in _T:
+            _T[k] = cr.praca_rica(self.fc, "dia" if hora == "dia" else "noite").copy()
+        return _T[k]
+
+    def quarto_noite(self):
+        return cz.quarto_simples(self.fc, False, True)
+
+    def quarto_dia(self):
+        return cz.quarto_simples(self.fc, False, False)
+
+    def fundo_noite(self):
+        return self.fundo_rosa((24, 28, 66), (10, 12, 30))
+
+    def casa_noite(self):
+        if "casan" not in _T:
+            _T["casan"] = ca.noite(cz.fachada(self.fc, "CASA", (220, 190, 170), (150, 60, 90)), 0.5)
+        return _T["casan"]
+
+    def casa_dia(self):
+        if "casad" not in _T:
+            _T["casad"] = cz.fachada(self.fc, "CASA", (220, 190, 170), (150, 60, 90))
+        return _T["casad"]
+
+    def quarto(self):
+        return cz.quarto_simples(self.fc, False, True)
+
+    def fundo_rosa(self, a=(96, 30, 78), b=(40, 12, 40)):
+        k = ("rosa", a)
+        if k not in _T:
+            _T[k] = gradiente(WW, WH, a, b)
+        return _T[k]
+
+    # ----- beats -----
+    def _beats(self):  # noqa: C901
+        R = []
+
+        def B(ini):
+            def deco(fn):
+                R.append((ini, fn))
+                return fn
+            return deco
+
+        C, K = self.C, self.kids
+        narr, bia, mae, maeb = self.narr, self.bia, self.mae, self.maeb
+        cp = ca2
+
+        def multidao(x0=140, n=5, esp=210, expr="neutro", pose="idle", e=1.0, base=1830):
+            return [C(K[i % len(K)], x0 + i * esp, base, e, expr, pose) for i in range(n)]
+
+        def apag(x, by, h=1500, ma=0.0):
+            def f(m):
+                im = cp.apagador(h, 0.0, ma)
+                cr.sombra(m, x, by - 4, h * 0.2)
+                m.alpha_composite(im, (int(x - im.width / 2), int(by - im.height)))
+            return f
+
+        def cama_na(cx, y, w=900):
+            return lambda m: m.alpha_composite(cp.cama(w), (int(cx - w / 2), int(y)))
+
+        @B(0.0)
+        def b_meianoite(t, d, T):
+            bg = self.rua("noite").copy()
+            return self.S(bg, [C(narr, 300, 1840, 1.2, "triste", "idle")] + multidao(560, 4, 170, "neutro", "idle", 1.0),
+                          [lambda m: cp.lua(m, 860, 300, 90)], (540, 1350, 1.2), t)
+
+        @B(1.12)
+        def b_esquece(t, d, T):
+            chars = [C(narr, 300, 1860, 1.6, "triste", "idle", None, 1), C(K[1], 800, 1850, 1.4, "neutro", "idle", None, -1)]
+            return self.S(self.rua("noite"), chars, cam=(540, 1250, 1.25), t=t)
+
+        @B(3.34)
+        def b_acordo(t, d, T):
+            return self.S(self.quarto_dia(), [C(narr, 540, 1800, 1.7, "surpreso", "idle")], [cama_na(540, 1520)],
+                          (540, 1250, 1.3), t)
+
+        @B(4.86)
+        def b_ninguem_sabe(t, d, T):
+            chars = [C(narr, 220, 1850, 1.3, "triste", "idle", None, 1)] + multidao(520, 3, 220, "surpreso", "idle", 1.1)
+            return self.S(self.rua(), chars, cam=(540, 1300, 1.2), t=t,
+                          bal=[("Quem é você?", OUT_W * 0.62, OUT_H * 0.14, 5.58)])
+
+        @B(6.38)
+        def b_mae(t, d, T):
+            return self.S(self.quarto_dia(), [C(mae, 540, 1860, 1.8, "surpreso", "idle")], cam=(540, 1250, 1.3), t=t,
+                          bal=[("Você é de onde, menino?", OUT_W * 0.5, OUT_H * 0.1, 6.5)])
+
+        @B(7.24)
+        def b_so_eu(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 460, 1860, 1.9, "neutro", "idle")], cam=(540, 1250, 1.3), t=t)
+
+        @B(9.78)
+        def b_relogio(t, d, T):
+            hh = 11 if T < 10.94 else 12
+            mm = 59 if T < 10.94 else 0
+            im = cp.relogio_torre(self.fc, hh, mm, 820)
+            return self.S(self.fundo_noite(), props=[self.img(im, 540, 900), lambda m: cp.lua(m, 880, 260, 70)],
+                          cam=(540, 1000, 1.0), t=t)
+
+        @B(12.42)
+        def b_aparece(t, d, T):
+            bg = self.rua("noite")
+            return self.S(bg, [], front=[apag(540, 1380, 760)], cam=(540, 1100, 1.1), t=t,
+                          fx=lambda f: ef.neblina(f, t, (200, 210, 255), 60))
+
+        @B(13.50)
+        def b_apagador(t, d, T):
+            return self.S(self.rua("noite"), [], front=[apag(540, 1860, 1700)], cam=(540, 1000, 1.05), t=t)
+
+        @B(15.36)
+        def b_sem_olhos(t, d, T):
+            im = cp.cabeca(760)
+            return self.S(self.fundo_noite(), props=[self.img(im, 540, 980)], cam=(540, 1000, 1.0), t=t)
+
+        @B(16.24)
+        def b_boca(t, d, T):
+            im = cp.cabeca(1300)
+            return self.S(self.fundo_noite(), props=[self.img(im, 540, 1250)], cam=(540, 1250, 1.05), t=t)
+
+        @B(17.66)
+        def b_maos(t, d, T):
+            return self.S(self.fundo_noite(), props=[self.img(cp.mao(900), 540, 1100)], cam=(540, 1050, 1.0), t=t)
+
+        @B(18.80)
+        def b_passa(t, d, T):
+            k = ease_io(min(1, max(0, (T - 18.9) / 1.6)))
+            xs = 760 - 480 * k
+            return self.S(self.rua("noite"), [C(K[1], 540, 1850, 1.6, "neutro", "idle")], cam=(540, 1250, 1.25), t=t,
+                          front=[self.img(cp.mao(640, True), xs, 940)])
+
+        @B(20.98)
+        def b_borracha(t, d, T):
+            k = min(1, max(0, (T - 21.1) / 1.0))
+            im = cp.rabisco_rosto(900, k)
+            return self.S(self.fundo_noite(), props=[self.img(im, 540, 960)], cam=(540, 1000, 1.0), t=t)
+
+        @B(22.12)
+        def b_manha(t, d, T):
+            bg = self.rua().copy()
+            amb.nuvens(bg, t, n=4, seed=3)
+            return self.S(bg, multidao(150, 5, 190, "feliz", "idle", 1.0), cam=(540, 1350, 1.2), t=t)
+
+        @B(22.82)
+        def b_nao_lembra(t, d, T):
+            return self.S(self.rua(), [C(K[2], 540, 1860, 1.8, "surpreso", "idle")], cam=(540, 1250, 1.3), t=t)
+
+        @B(24.30)
+        def b_nem_de_mim(t, d, T):
+            chars = [C(narr, 200, 1850, 1.4, "triste", "idle")] + multidao(480, 4, 190, "feliz", "idle", 1.0)
+            return self.S(self.rua(), chars, cam=(540, 1300, 1.2), t=t)
+
+        @B(26.16)
+        def b_sorrindo(t, d, T):
+            return self.S(self.rua(), multidao(130, 6, 170, "feliz", "bracos_abertos", 1.0), cam=(540, 1350, 1.2), t=t)
+
+        @B(27.68)
+        def b_normal(t, d, T):
+            bg = self.rua().copy()
+            amb.passaros(bg, t)
+            return self.S(bg, multidao(200, 4, 220, "feliz", "acena", 1.05), cam=(540, 1350, 1.2), t=t)
+
+        @B(29.12)
+        def b_so_lembro(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 540, 1860, 1.9, "surpreso", "idle")], cam=(540, 1250, 1.3), t=t)
+
+        @B(30.20)
+        def b_nunca_durmo(t, d, T):
+            im = cp.relogio_torre(self.fc, 3, 0, 700)
+            return self.S(self.quarto_noite(), [C(narr, 300, 1860, 1.6, "surpreso", "idle")],
+                          [lambda m: m.alpha_composite(im, (640, 300))], (540, 1250, 1.2), t)
+
+        @B(31.24)
+        def b_deito(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 540, 1800, 1.7, "neutro", "idle")], [cama_na(540, 1520)],
+                          (540, 1250, 1.25), t)
+
+        @B(33.38)
+        def b_finge(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 540, 1800, 1.8, "feliz", "idle")], [cama_na(540, 1520)],
+                          (540, 1250, 1.3), t)
+
+        @B(34.80)
+        def b_descobrir(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 380, 1800, 1.5, "feliz", "idle")], [cama_na(380, 1520, 800)],
+                          (540, 1250, 1.15), t, front=[apag(900, 1860, 1500)])
+
+        @B(36.80)
+        def b_proximo(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 540, 1860, 1.9, "surpreso", "idle")], cam=(540, 1250, 1.3), t=t,
+                          fx=lambda f: ef.vinheta_cor(f, (180, 20, 40), 0.55))
+
+        @B(37.88)
+        def b_bia(t, d, T):
+            return self.S(self.quarto_noite(), [C(bia, 540, 1860, 1.8, "neutro", "idle")], cam=(540, 1250, 1.3), t=t)
+
+        @B(39.62)
+        def b_acordada(t, d, T):
+            return self.S(self.quarto_noite(), [C(bia, 540, 1800, 1.6, "surpreso", "idle")], [cama_na(540, 1520, 860)],
+                          (540, 1250, 1.2), t)
+
+        @B(41.00)
+        def b_lapis(t, d, T):
+            lp = lambda m: m.alpha_composite(cp.lapis(300, 8), (580, 1380))  # noqa: E731
+            return self.S(self.quarto_noite(), [C(bia, 300, 1850, 1.5, "neutro", "entrega"),
+                                                C(narr, 830, 1850, 1.4, "feliz", "idle", None, -1)], [lp], (540, 1250, 1.15), t)
+
+        @B(42.92)
+        def b_cochicha(t, d, T):
+            return self.S(self.quarto_noite(), [C(bia, 400, 1860, 1.9, "neutro", "idle", self.dlg["bia"], 1)],
+                          cam=(540, 1250, 1.3), t=t,
+                          bal=[("Guarda pra quando precisar lembrar.", OUT_W * 0.52, OUT_H * 0.1, 43.78)])
+
+        @B(45.48)
+        def b_bocejou(t, d, T):
+            return self.S(self.quarto_noite(), [C(bia, 540, 1860, 1.9, "surpreso", "idle", [(46.2, 47.0)])],
+                          cam=(540, 1250, 1.3), t=t)
+
+        @B(47.32)
+        def b_uma_vez(t, d, T):
+            im = cp.relogio_torre(self.fc, 12, 0, 700)
+            return self.S(self.fundo_noite(), props=[self.img(im, 540, 960)], cam=(540, 1000, 1.0), t=t)
+
+        @B(48.32)
+        def b_virou(t, d, T):
+            return self.S(self.quarto_noite(), [C(bia, 300, 1850, 1.5, "surpreso", "idle", None, 1)], cam=(540, 1250, 1.15),
+                          t=t, front=[apag(820, 1860, 1700, 0.5)])
+
+        @B(50.32)
+        def b_mao_rosto(t, d, T):
+            flash = max(0, 1 - abs(T - 51.4) * 2)
+            return self.S(self.quarto_noite(), [C(bia, 540, 1860, 1.9, "surpreso", "idle")], cam=(540, 1250, 1.3), t=t,
+                          front=[self.img(cp.mao(760), 640, 1050)],
+                          fx=lambda f: Image.blend(f, Image.new("RGB", f.size, (255, 255, 255)), min(1, flash)) if flash > 0 else f)
+
+        @B(52.28)
+        def b_manha2(t, d, T):
+            return self.S(self.quarto_dia(), [], [cama_na(540, 1520, 900)], (540, 1250, 1.2), t)
+
+        @B(52.80)
+        def b_ninguem_sabia(t, d, T):
+            chars = multidao(150, 5, 190, "surpreso", "idle", 1.05)
+            return self.S(self.rua(), chars, cam=(540, 1300, 1.2), t=t,
+                          bal=[("Bia? Quem é Bia?", OUT_W * 0.5, OUT_H * 0.12, 53.4)])
+
+        @B(54.84)
+        def b_mae_bia(t, d, T):
+            return self.S(self.quarto_dia(), [C(maeb, 540, 1860, 1.8, "surpreso", "idle")], cam=(540, 1250, 1.3), t=t)
+
+        @B(55.68)
+        def b_aprendi(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 540, 1860, 1.9, "triste", "idle")], cam=(540, 1250, 1.3), t=t)
+
+        @B(56.76)
+        def b_nunca_bocejei(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 540, 1860, 1.9, "neutro", "bolso")], cam=(540, 1250, 1.3), t=t)
+
+        @B(58.18)
+        def b_cabeca_caiu(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 540, 1800, 1.7, "feliz", "idle")], [cama_na(540, 1520)],
+                          (540, 1250, 1.25), t)
+
+        @B(60.06)
+        def b_parou(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 300, 1800, 1.4, "feliz", "idle")], [cama_na(300, 1520, 760)],
+                          (540, 1250, 1.15), t, front=[apag(780, 1900, 1800)])
+
+        @B(61.46)
+        def b_prendi(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 540, 1860, 1.9, "surpreso", "idle")], cam=(540, 1250, 1.35), t=t,
+                          fx=lambda f: ef.vinheta_cor(f, (20, 20, 80), 0.6))
+
+        @B(63.02)
+        def b_sol(t, d, T):
+            return self.S(self.quarto_dia(), [C(narr, 540, 1860, 1.8, "neutro", "idle")], cam=(540, 1250, 1.3), t=t,
+                          fx=lambda f: ef.raios(f, t, (255, 226, 140), 14, 40, (OUT_W * 0.8, OUT_H * 0.2)))
+
+        @B(64.00)
+        def b_cinco_anos(t, d, T):
+            bg = gradiente(WW, WH, (34, 34, 52), (14, 14, 24))
+            im = cr.calendario(self.fc, "ANOS", int(min(5, (T - 64.0) * 3)), total=5, w=960, cor_topo=(70, 74, 90))
+            return self.S(bg, props=[self.img(im, 540, 960)], cam=(540, 1000, 1.0), t=t)
+
+        @B(65.38)
+        def b_desconfiou(t, d, T):
+            return self.S(self.rua("noite"), [C(narr, 280, 1850, 1.3, "neutro", "idle")], cam=(540, 1250, 1.15), t=t,
+                          front=[apag(860, 1500, 1100)])
+
+        @B(67.08)
+        def b_cansado(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 540, 1860, 1.9, "triste", "idle")], cam=(540, 1250, 1.3), t=t)
+
+        @B(69.20)
+        def b_fechar(t, d, T):
+            return self.S(self.quarto_noite(), [C(narr, 540, 1860, 1.9, "triste", "idle")], cam=(540, 1250, 1.3), t=t)
+
+        @B(70.58)
+        def b_fim(t, d, T):
+            k = max(0, (T - 71.6) / 1.2)
+            f = self.S(self.quarto_noite(), [C(narr, 540, 1860, 1.9, "feliz", "idle")], cam=(540, 1250, 1.35), t=t)
+            return Image.blend(f, Image.new("RGB", f.size, (0, 0, 0)), min(1, k)) if k > 0 else f
+
+        R.sort(key=lambda x: x[0])
+        return R
+
+
+# --------------------------------------------------------------------------
+def mixar(filme, narracao, saida):
+    import som
+    SR = som.SR
+    voz = vc.ler_wav_mono(narracao)
+    dur = filme.dur_total
+    ev = []
+    for i, c in enumerate(filme.sfx_cortes):
+        ev.append(("whoosh" if i % 3 == 0 else "pop", c - 0.04, 0.22 if i % 3 == 0 else 0.2))
+    ev += [("riser", 12.0, 0.4), ("hit", 13.5, 0.8), ("hit", 51.4, 0.8), ("hit", 60.1, 0.6), ("hit", 34.8, 0.5),
+           ("ding", 63.0, 0.4), ("pagina", 21.2, 0.3)]
+    amb_ = [("cidade", 0.0, 3.3, 0.3), ("noite", 3.3, 22.0, 0.45), ("cidade", 22.0, 30.0, 0.3), ("noite", 30.0, 62.5, 0.45),
+            ("cidade", 62.5, 66.0, 0.3), ("noite", 66.0, dur - 1.5, 0.45)]
+    picos = [(13.6, 0.9), (36.8, 0.7), (51.4, 0.9), (60.2, 0.9), (70.0, 0.7)]
+    mix = som.mixar_v2(dur, voz, ev, amb_, picos, "triste", 0.2)
+    with wave.open(saida, "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(SR)
+        w.writeframes((mix * 32767).astype(np.int16).tobytes())
+
+
+def carregar_palavras(caminho):
+    troca = {"apagador,": "Apagador,", "apagador": "Apagador", "coxichou,": "cochichou,", "porquê": "por quê", "porquê,": "por quê,",
+             "durma,": "durmo,", "finge": "fingo"}
+    out = []
+    for seg in json.load(open(caminho)):
+        for w in seg["words"]:
+            if w["w"] == "o" and abs(w["s"] - 33.86) < 0.05:
+                continue
+            out.append(dict(w=troca.get(w["w"], w["w"]), s=w["s"], e=w["e"]))
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--narracao", required=True)
+    ap.add_argument("--transcricao", required=True)
+    ap.add_argument("--camera", required=True)
+    ap.add_argument("--fonte", default=g.fonte_padrao())
+    ap.add_argument("--saida", default=os.path.join(os.path.dirname(__file__), "video_o_apagador.mp4"))
+    ap.add_argument("--preview", default=None)
+    ap.add_argument("--testar", action="store_true")
+    ap.add_argument("--de", type=float, default=None)
+    ap.add_argument("--ate", type=float, default=None)
+    a = ap.parse_args()
+
+    voz_dur = len(vc.ler_wav_mono(a.narracao)) / g.SR
+    cam = json.load(open(a.camera))
+    ref_dur = cam[-1]["ini"] + cam[-1]["dur"]
+    filme = FilmeTodos(carregar_palavras(a.transcricao), a.fonte, voz_dur + 1.4, a.narracao, cam,
+                       [(0.0, 0.0), (ref_dur, voz_dur)])
+    total = int(filme.dur_total * FPS)
+
+    if a.testar:
+        for ini, d, *_r in filme.planos:
+            for k in (0.01, 0.5, 0.99):
+                filme.frame(int((ini + d * k) * FPS))
+        print(f"todos os planos ok — {len(filme.planos)} cenas em {filme.dur_total:.1f}s")
+        return
+    if a.preview:
+        os.makedirs(a.preview, exist_ok=True)
+        for i, (ini, d, *_r) in enumerate(filme.planos):
+            filme.frame(int((ini + d * 0.6) * FPS)).save(os.path.join(a.preview, f"cena_{i:03d}.png"))
+        print("preview em", a.preview, len(filme.planos), "cenas")
+        return
+
+    tmp = tempfile.mkdtemp(prefix="apag_")
+    wav = os.path.join(tmp, "mix.wav")
+    mixar(filme, a.narracao, wav)
+    n0 = int((a.de or 0) * FPS)
+    n1 = int(a.ate * FPS) if a.ate else total
+    if a.de or a.ate:
+        tr = os.path.join(tmp, "trecho.wav")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(a.de or 0), "-t", str((n1 - n0) / FPS), "-i", wav, tr],
+                       check=True)
+        wav = tr
+    print(f"• renderizando {total} frames ({filme.dur_total:.1f}s)…", flush=True)
+    proc = subprocess.Popen(
+        ["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{OUT_W}x{OUT_H}",
+         "-r", str(FPS), "-i", "-", "-i", wav, "-vf", "scale=1080:1920:flags=lanczos",
+         "-c:v", "libx264", "-preset", "medium", "-crf", "26", "-maxrate", "3500k", "-bufsize", "7M",
+         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", a.saida],
+        stdin=subprocess.PIPE)
+    import render
+    render.renderizar(filme, n0, n1, proc.stdin, progresso=True, total=total)
+    proc.stdin.close()
+    proc.wait()
+    print("✔ vídeo salvo em", a.saida)
+
+
+if __name__ == "__main__":
+    main()
