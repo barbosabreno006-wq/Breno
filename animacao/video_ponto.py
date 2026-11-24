@@ -71,6 +71,32 @@ def cz_ponte_rua(f):  # noqa: E301
 IRIS = {"b_cinco", "b_marcelo", "b_internado", "b_helena", "b_sexta", "b_foto", "b_licenca", "b_acordou"}
 
 
+MAPA = None      # {"delta", "ini_novo", "bato_novo", "bato_velho", "fim_velho"}: encaixe da nova abertura
+
+
+def to_old(t):
+    """Tempo do vídeo (novo) -> tempo da linha do tempo original das cenas."""
+    m = MAPA
+    if m is None:
+        return t
+    if t >= m["ini_novo"]:
+        return t - m["delta"]
+    if t >= m["bato_novo"]:
+        return m["bato_velho"] + (t - m["bato_novo"]) * (m["fim_velho"] - m["bato_velho"]) / (m["ini_novo"] - m["bato_novo"])
+    return t * m["bato_velho"] / m["bato_novo"]
+
+
+def to_new(t):
+    m = MAPA
+    if m is None:
+        return t
+    if t >= m["fim_velho"]:
+        return t + m["delta"]
+    if t >= m["bato_velho"]:
+        return m["bato_novo"] + (t - m["bato_velho"]) * (m["ini_novo"] - m["bato_novo"]) / (m["fim_velho"] - m["bato_velho"])
+    return t * m["bato_novo"] / m["bato_velho"]
+
+
 class FilmeTodos(va.FilmeAreia):
     def __init__(self, palavras, fc, dur_total, narracao, camera, ancoras):  # noqa: C901
         self.fc = fc
@@ -132,6 +158,11 @@ class FilmeTodos(va.FilmeAreia):
             if a <= t:
                 k = i
         return k
+
+    def frame(self, n):
+        if MAPA is None:
+            return super().frame(n)
+        return super().frame(int(round(to_old(n / FPS) * FPS)))
 
     def _encaixar(self, t):
         """Puxa o corte para o início de palavra mais próximo (até 0.3 s)."""
@@ -539,6 +570,9 @@ def mixar(filme, narracao, saida):
             ("hospital", 24.0, 28.0, 0.35), ("noite", 28.0, 34.0, 0.3), ("cidade", 34.0, 52.0, 0.2), ("noite", 52.0, 80.0, 0.35),
             ("hospital", 80.0, dur - 1.5, 0.35)]
     picos = [(18.0, 0.6), (42.8, 0.7), (62.4, 0.6), (69.3, 0.8), (84.3, 0.9)]
+    ev = [(k_, to_new(t_), *r_) for (k_, t_, *r_) in ev]
+    amb_ = [(n_, to_new(a_), to_new(b_) if b_ < dur - 2 else b_, v_) for (n_, a_, b_, v_) in amb_]
+    picos = [(to_new(t_), v_) for (t_, v_) in picos]
     mix = som.mixar_v2(dur, voz, ev, amb_, picos, "triste", 0.2)
     with wave.open(saida, "wb") as w:
         w.setnchannels(1)
@@ -566,17 +600,32 @@ def main():
     ap.add_argument("--camera", required=True)
     ap.add_argument("--fonte", default=g.fonte_padrao())
     ap.add_argument("--saida", default=os.path.join(os.path.dirname(__file__), "video_o_ponto_do_marcelo.mp4"))
+    ap.add_argument("--abertura", default=None, help="json das palavras da nova abertura (narracao = abertura + resto)")
     ap.add_argument("--preview", default=None)
     ap.add_argument("--testar", action="store_true")
     ap.add_argument("--de", type=float, default=None)
     ap.add_argument("--ate", type=float, default=None)
     a = ap.parse_args()
 
+    global MAPA
     voz_dur = len(vc.ler_wav_mono(a.narracao)) / g.SR
     cam = json.load(open(a.camera))
+    palavras = carregar_palavras(a.transcricao)
+    delta = 0.0
+    if a.abertura:
+        ab = [w for seg in json.load(open(a.abertura)) for w in seg["words"]]
+        ab_dur = float(subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0",
+                                                a.abertura.replace(".json", ".mp3")]).decode().strip())
+        ini_novo = ab_dur + 0.12
+        bato_novo = [w for w in ab if w["w"].lower().startswith("bato")][1]["s"]
+        delta = ini_novo - 4.05
+        MAPA = dict(delta=delta, ini_novo=ini_novo, bato_novo=bato_novo, bato_velho=1.5, fim_velho=4.05)
+        novas = [dict(w=w["w"], s=to_old(w["s"]), e=to_old(w["e"])) for w in ab]
+        palavras = novas + [w for w in palavras if w["s"] >= 4.05]
     ref_dur = cam[-1]["ini"] + cam[-1]["dur"]
-    filme = FilmeTodos(carregar_palavras(a.transcricao), a.fonte, voz_dur + 1.4, a.narracao, cam,
-                       [(0.0, 0.0), (ref_dur, voz_dur)])
+    voz_velha = voz_dur - delta
+    filme = FilmeTodos(palavras, a.fonte, voz_velha + 1.4, a.narracao, cam, [(0.0, 0.0), (ref_dur, voz_velha)])
+    filme.dur_total += delta
     total = int(filme.dur_total * FPS)
 
     if a.testar:
