@@ -34,16 +34,33 @@ def ruido(dur, f0=None, f1=None, cor="branco"):
     return y / max(1e-6, np.abs(y).max())
 
 
+def passa_baixa(x, f, suave=0.25):
+    """Passa-baixa por FFT (corte suave em torno de f Hz) — tira o 'chiado' agudo."""
+    n = len(x)
+    X = np.fft.rfft(x)
+    fr = np.fft.rfftfreq(n, 1 / SR)
+    m = 1 / (1 + (fr / f) ** 4)
+    return np.fft.irfft(X * m, n).astype(np.float32)
+
+
+def passa_alta(x, f):
+    n = len(x)
+    X = np.fft.rfft(x)
+    fr = np.fft.rfftfreq(n, 1 / SR)
+    m = (fr / f) ** 2 / (1 + (fr / f) ** 2)
+    return np.fft.irfft(X * m, n).astype(np.float32)
+
+
 # ---------------------------------------------------------------- efeitos
 def sfx(tipo):
     if tipo == "whoosh":
         n = int(0.55 * SR)
-        r = ruido(0.55, 300, 7000)
+        r = ruido(0.55, 250, 2200)
         t = np.arange(n) / SR
         env = np.sin(np.pi * t / 0.55) ** 2
         # varredura: mais agudo no meio
         brilho = 0.6 + 0.4 * np.sin(np.pi * t / 0.55)
-        return (r * env * brilho * 0.8).astype(np.float32)
+        return (r * env * brilho * 0.5).astype(np.float32)
     if tipo == "pop":
         n = int(0.16 * SR)
         t = np.arange(n) / SR
@@ -58,17 +75,17 @@ def sfx(tipo):
     if tipo == "shutter":
         a = np.zeros(int(0.32 * SR), np.float32)
         for t0, g in ((0.0, 1.0), (0.11, 0.8)):
-            r = ruido(0.05, 1200, 9000)[: int(0.05 * SR)] * _env(int(0.05 * SR), 0.001, 0.012) * g
+            r = ruido(0.05, 800, 3500)[: int(0.05 * SR)] * _env(int(0.05 * SR), 0.001, 0.012) * g
             i0 = int(t0 * SR)
             a[i0:i0 + len(r)] += r
         return a * 0.8
     if tipo == "pagina":
-        r = ruido(0.28, 2000, 9000) * np.sin(np.linspace(0, np.pi, int(0.28 * SR))) ** 2
-        return (r * 0.5).astype(np.float32)
+        r = ruido(0.28, 700, 3200) * np.sin(np.linspace(0, np.pi, int(0.28 * SR))) ** 2
+        return (r * 0.3).astype(np.float32)
     if tipo == "ding":
         n = int(1.1 * SR)
         t = np.arange(n) / SR
-        y = np.sin(2 * np.pi * 1318 * t) + 0.4 * np.sin(2 * np.pi * 2637 * t) + 0.2 * np.sin(2 * np.pi * 3951 * t)
+        y = np.sin(2 * np.pi * 988 * t) + 0.18 * np.sin(2 * np.pi * 1976 * t)
         return (y * _env(n, 0.003, 0.35) * 0.45).astype(np.float32)
     if tipo == "bip":
         n = int(0.16 * SR)
@@ -96,9 +113,9 @@ def ambiente(nome, dur):
     n = int(dur * SR)
     t = np.arange(n) / SR
     if nome == "chuva":
-        base = ruido(dur, 1500, 9000) * 0.5 + ruido(dur, 200, 900, "rosa") * 0.25
-        gotas = ruido(dur, 3000, 12000) * (np.abs(_rng.standard_normal(n)) > 2.7)
-        return (base + 0.5 * gotas).astype(np.float32) * 0.5
+        base = ruido(dur, 700, 4200) * 0.35 + ruido(dur, 200, 900, "rosa") * 0.3
+        gotas = ruido(dur, 1500, 5000) * (np.abs(_rng.standard_normal(n)) > 2.9)
+        return (base + 0.3 * gotas).astype(np.float32) * 0.45
     if nome == "vento":
         m = 0.6 + 0.4 * np.sin(2 * np.pi * t / 7.0 + 1.2) * np.sin(2 * np.pi * t / 3.1)
         return (ruido(dur, 80, 900, "marrom") * m).astype(np.float32) * 0.6
@@ -107,16 +124,10 @@ def ambiente(nome, dur):
         m = 0.55 + 0.45 * np.abs(np.sin(2 * np.pi * t / 2.3 + np.cumsum(_rng.standard_normal(n)) * 1e-4))
         return (base * m).astype(np.float32) * 0.55
     if nome == "cidade":
-        return (ruido(dur, 40, 500, "marrom") * 0.7 + ruido(dur, 500, 4000, "rosa") * 0.2).astype(np.float32) * 0.5
+        return (ruido(dur, 40, 500, "marrom") * 0.7 + ruido(dur, 500, 1600, "rosa") * 0.08).astype(np.float32) * 0.5
     if nome == "noite":
-        gr = np.zeros(n, np.float32)
-        for k in range(int(dur * 1.5)):
-            i0 = int(_rng.uniform(0, max(1, dur - 0.3)) * SR)
-            f = _rng.uniform(4200, 5200)
-            ln = int(0.09 * SR)
-            tt = np.arange(ln) / SR
-            gr[i0:i0 + ln] += (np.sin(2 * np.pi * f * tt) * np.sin(np.pi * tt / 0.09) ** 2 * 0.35)[: max(0, min(ln, n - i0))]
-        return gr + ruido(dur, 60, 400, "marrom") * 0.18
+        # sem grilos agudos (viravam chiado): só um zumbido grave e suave
+        return ruido(dur, 50, 320, "marrom") * 0.25 * (0.8 + 0.2 * np.sin(2 * np.pi * t / 9.0))
     if nome == "hospital":
         z = ruido(dur, 100, 700, "marrom") * 0.35
         b = np.zeros(n, np.float32)
@@ -126,7 +137,7 @@ def ambiente(nome, dur):
             b[i0:i0 + len(bip)] += bip[: max(0, min(len(bip), n - i0))]
         return z + b
     if nome == "escola":
-        return (ruido(dur, 300, 2800, "rosa") * (0.35 + 0.15 * np.sin(2 * np.pi * t / 5.3))).astype(np.float32) * 0.4
+        return (ruido(dur, 300, 1500, "rosa") * (0.35 + 0.15 * np.sin(2 * np.pi * t / 5.3))).astype(np.float32) * 0.3
     return np.zeros(n, np.float32)
 
 
@@ -200,9 +211,9 @@ def mixar_v2(dur, voz, eventos, ambientes=(), picos=(), clima="triste", vol_musi
     v = voz[:n]
     duck = ducking(np.pad(v, (0, max(0, n - len(v)))))
     mus = trilha_v2(dur, picos, clima)[:n] * vol_musica
-    mix += mus * duck[: len(mus)]
+    mix += passa_baixa(mus, 2600) * duck[: len(mus)] * 0.8
     for nome, t0, t1, ganho in ambientes:
-        a = ambiente(nome, t1 - t0) * ganho
+        a = passa_baixa(ambiente(nome, t1 - t0), 1400) * ganho * 0.7
         i0 = int(t0 * SR)
         f = int(min(len(a) // 4, 1.2 * SR))
         a[:f] *= np.linspace(0, 1, f)
@@ -210,11 +221,12 @@ def mixar_v2(dur, voz, eventos, ambientes=(), picos=(), clima="triste", vol_musi
         mix[i0:i0 + len(a)] += (a * duck[i0:i0 + len(a)])[: max(0, n - i0)]
     mix[:len(v)] += v
     for tipo, t0, ganho in eventos:
-        s = sfx(tipo) * ganho
+        s = passa_baixa(sfx(tipo), 4500) * ganho
         a = int(max(0, t0) * SR)
         b = min(n, a + len(s))
         if b > a:
             mix[a:b] += s[: b - a]
     f = int(SR * 1.2)
     mix[-f:] *= np.linspace(1, 0, f)
+    mix = passa_baixa(passa_alta(mix, 70), 11000)          # master: tira graves/agudos inúteis
     return mix / max(1.0, np.abs(mix).max() / 0.95)

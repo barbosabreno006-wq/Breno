@@ -536,6 +536,7 @@ def main():
     ap.add_argument("--fonte", default=g.fonte_padrao())
     ap.add_argument("--saida", default=os.path.join(os.path.dirname(__file__), "video_de_quatro_no_quarto.mp4"))
     ap.add_argument("--abertura", default=None, help="json das palavras da nova abertura (narracao = abertura + resto)")
+    ap.add_argument("--so_audio", action="store_true", help="refaz só o áudio e troca no mp4 já renderizado")
     ap.add_argument("--preview", default=None)
     ap.add_argument("--testar", action="store_true")
     ap.add_argument("--de", type=float, default=None)
@@ -563,6 +564,16 @@ def main():
     filme.dur_total += delta
     total = int(filme.dur_total * FPS)
 
+    if a.so_audio:
+        tmp = tempfile.mkdtemp(prefix="audio_")
+        wav = os.path.join(tmp, "mix.wav")
+        mixar(filme, a.narracao, wav)
+        novo = os.path.join(tmp, "novo.mp4")
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", a.saida, "-i", wav, "-map", "0:v", "-map", "1:a", "-c:v", "copy",
+                        "-c:a", "aac", "-b:a", "192k", "-shortest", "-movflags", "+faststart", novo], check=True)
+        os.replace(novo, a.saida)
+        print("✔ áudio refeito em", a.saida)
+        return
     if a.testar:
         for ini, d, *_r in filme.planos:
             for k in (0.01, 0.5, 0.99):
